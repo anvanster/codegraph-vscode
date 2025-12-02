@@ -1,0 +1,44 @@
+[package]
+name = "codegraph-lsp"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Language Server Protocol implementation for CodeGraph"
+
+[[bin]]
+name = "codegraph-lsp"
+path = "src/main.rs"
+
+[lib]
+name = "codegraph_lsp"
+path = "src/lib.rs"
+
+[dependencies]
+# LSP framework
+tower-lsp.workspace = true
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Utilities
+thiserror.workspace = true
+dashmap.workspace = true
+notify.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+lru.workspace = true
+
+# CodeGraph ecosystem
+codegraph.workspace = true
+codegraph-parser-api.workspace = true
+codegraph-python.workspace = true
+codegraph-rust.workspace = true
+codegraph-typescript.workspace = true
+codegraph-go.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+tokio-test = "0.4"

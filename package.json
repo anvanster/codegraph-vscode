@@ -1,0 +1,200 @@
+{
+    "name": "codegraph",
+    "displayName": "CodeGraph",
+    "description": "Cross-language code intelligence powered by graph analysis",
+    "version": "0.1.0",
+    "publisher": "codegraph",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/codegraph/codegraph-vscode"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Linters",
+        "Other"
+    ],
+    "keywords": [
+        "code intelligence",
+        "cross-language",
+        "code graph",
+        "navigation",
+        "AI"
+    ],
+    "activationEvents": [
+        "onLanguage:python",
+        "onLanguage:rust",
+        "onLanguage:typescript",
+        "onLanguage:javascript",
+        "onLanguage:go"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "codegraph.showDependencyGraph",
+                "title": "Show Dependency Graph",
+                "category": "CodeGraph"
+            },
+            {
+                "command": "codegraph.showCallGraph",
+                "title": "Show Call Graph",
+                "category": "CodeGraph"
+            },
+            {
+                "command": "codegraph.analyzeImpact",
+                "title": "Analyze Impact",
+                "category": "CodeGraph"
+            },
+            {
+                "command": "codegraph.showMetrics",
+                "title": "Show Parser Metrics",
+                "category": "CodeGraph"
+            },
+            {
+                "command": "codegraph.openAIChat",
+                "title": "Open AI Assistant",
+                "category": "CodeGraph"
+            },
+            {
+                "command": "codegraph.reindex",
+                "title": "Reindex Workspace",
+                "category": "CodeGraph"
+            }
+        ],
+        "configuration": {
+            "title": "CodeGraph",
+            "properties": {
+                "codegraph.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable CodeGraph extension"
+                },
+                "codegraph.languages": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": ["python", "rust", "typescript", "javascript", "go"],
+                    "description": "Languages to index"
+                },
+                "codegraph.indexOnStartup": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Index workspace on startup"
+                },
+                "codegraph.maxFileSizeKB": {
+                    "type": "number",
+                    "default": 1024,
+                    "description": "Maximum file size to index (KB)"
+                },
+                "codegraph.excludePatterns": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [
+                        "**/node_modules/**",
+                        "**/target/**",
+                        "**/__pycache__/**",
+                        "**/dist/**",
+                        "**/build/**",
+                        "**/.git/**"
+                    ],
+                    "description": "Glob patterns for files to exclude"
+                },
+                "codegraph.includePrivate": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include private/internal symbols"
+                },
+                "codegraph.includeTests": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Include test files and functions"
+                },
+                "codegraph.ai.maxContextTokens": {
+                    "type": "number",
+                    "default": 4000,
+                    "description": "Maximum tokens for AI context"
+                },
+                "codegraph.ai.contextStrategy": {
+                    "type": "string",
+                    "enum": ["minimal", "smart", "maximum"],
+                    "default": "smart",
+                    "description": "AI context selection strategy"
+                },
+                "codegraph.visualization.defaultDepth": {
+                    "type": "number",
+                    "default": 3,
+                    "description": "Default depth for graph visualizations"
+                },
+                "codegraph.cache.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable query caching"
+                },
+                "codegraph.cache.maxSizeMB": {
+                    "type": "number",
+                    "default": 500,
+                    "description": "Maximum cache size (MB)"
+                },
+                "codegraph.parallelParsing": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable parallel file parsing"
+                },
+                "codegraph.trace.server": {
+                    "type": "string",
+                    "enum": ["off", "messages", "verbose"],
+                    "default": "off",
+                    "description": "Trace communication with the language server"
+                }
+            }
+        },
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "codegraph.showCallGraph",
+                    "group": "codegraph",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "codegraph.analyzeImpact",
+                    "group": "codegraph",
+                    "when": "editorTextFocus"
+                }
+            ]
+        },
+        "views": {
+            "explorer": [
+                {
+                    "id": "codegraphSymbols",
+                    "name": "CodeGraph Symbols",
+                    "when": "codegraph.enabled"
+                }
+            ]
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile && npm run build-server",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "build-server": "cd server && cargo build --release",
+        "build-webview": "cd webview && npm run build",
+        "package": "vsce package",
+        "lint": "eslint src --ext ts",
+        "test": "npm run compile && node ./out/test/runTest.js"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^6.13.0",
+        "@typescript-eslint/parser": "^6.13.0",
+        "@vscode/vsce": "^2.22.0",
+        "eslint": "^8.55.0",
+        "typescript": "^5.3.0"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
+    }
+}

@@ -1,0 +1,42 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "server",
+]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/codegraph/codegraph-vscode"
+authors = ["CodeGraph Team"]
+
+[workspace.dependencies]
+# LSP framework
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Utilities
+thiserror = "1.0"
+dashmap = "5"
+notify = "6"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+lru = "0.12"
+
+# CodeGraph ecosystem (local development versions with working edge creation)
+codegraph = { path = "../codegraph-monorepo/crates/codegraph" }
+codegraph-parser-api = { path = "../codegraph-monorepo/crates/codegraph-parser-api" }
+codegraph-python = { path = "../codegraph-monorepo/crates/codegraph-python" }
+codegraph-rust = { path = "../codegraph-monorepo/crates/codegraph-rust" }
+codegraph-typescript = { path = "../codegraph-monorepo/crates/codegraph-typescript" }
+codegraph-go = { path = "../codegraph-monorepo/crates/codegraph-go" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

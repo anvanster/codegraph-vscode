@@ -1,0 +1,42 @@
+.codemender/
+.vscode/
+# Build outputs
+out/
+dist/
+*.vsix
+
+# Dependencies
+node_modules/
+
+# Rust build
+target/
+*.rs.bk
+
+# VS Code
+.vscode-test/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Webview build
+webview/dist/
+webview/node_modules/
