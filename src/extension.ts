@@ -9,10 +9,12 @@ import {
 import { registerCommands } from './commands';
 import { registerTreeDataProviders } from './views/treeProviders';
 import { CodeGraphAIProvider } from './ai/contextProvider';
+import { CodeGraphToolManager } from './ai/toolManager';
 import { getServerPath } from './server';
 
 let client: LanguageClient;
 let aiProvider: CodeGraphAIProvider;
+let toolManager: CodeGraphToolManager;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const config = vscode.workspace.getConfiguration('codegraph');
@@ -69,12 +71,70 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Create AI context provider
     aiProvider = new CodeGraphAIProvider(client);
 
+    // Register Language Model Tools for autonomous AI agent access
+    toolManager = new CodeGraphToolManager(client);
+    toolManager.registerTools();
+
+    vscode.window.showInformationMessage('CodeGraph: AI tools registered and available to AI agents');
+
     // Register commands, tree providers, etc.
     registerCommands(context, client, aiProvider);
     registerTreeDataProviders(context, client);
 
-    // Add client to disposables
-    context.subscriptions.push(client);
+    // Add debug command to verify tool registration
+    context.subscriptions.push(
+        vscode.commands.registerCommand('codegraph.debugTools', async () => {
+            try {
+                // Check if vscode.lm exists
+                if (!(vscode as any).lm) {
+                    vscode.window.showErrorMessage('❌ vscode.lm API not available. VS Code version may be too old (need 1.90+)');
+                    return;
+                }
+
+                // Get all registered tools (API might be different)
+                const lmApi = (vscode as any).lm;
+                let allTools: any[] = [];
+
+                // Try to get tools
+                if (typeof lmApi.tools === 'function') {
+                    allTools = await lmApi.tools();
+                } else if (Array.isArray(lmApi.tools)) {
+                    allTools = lmApi.tools;
+                } else {
+                    vscode.window.showWarningMessage('Unable to access vscode.lm.tools - API shape unknown');
+                }
+
+                const codegraphTools = allTools.filter(t => t && t.name && t.name.startsWith('codegraph_'));
+
+                // Show results
+                const message = [
+                    '📊 CodeGraph Tools Debug Info:',
+                    `VS Code version: ${vscode.version}`,
+                    `Total LM tools: ${allTools.length}`,
+                    `CodeGraph tools: ${codegraphTools.length}`,
+                    '',
+                    codegraphTools.length > 0 ? 'CodeGraph tools found:' : 'No CodeGraph tools found',
+                    ...codegraphTools.map(t => `  ✓ ${t.name}`)
+                ].join('\n');
+
+                vscode.window.showInformationMessage(message, { modal: true });
+
+                // Also log to console
+                console.log('=== CodeGraph Tools Debug ===');
+                console.log('VS Code version:', vscode.version);
+                console.log('All tools:', allTools.map(t => t?.name || 'unnamed'));
+                console.log('CodeGraph tools:', codegraphTools.map(t => t.name));
+                console.log('Tool manager instance:', toolManager);
+                console.log('Tool manager disposables count:', (toolManager as any).disposables?.length);
+            } catch (error) {
+                vscode.window.showErrorMessage(`Error checking tools: ${error}`);
+                console.error('Debug tools error:', error);
+            }
+        })
+    );
+
+    // Add to disposables
+    context.subscriptions.push(client, toolManager);
 
     // Set context for conditional UI
     vscode.commands.executeCommand('setContext', 'codegraph.enabled', true);

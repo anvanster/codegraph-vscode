@@ -10,7 +10,7 @@
         "url": "https://github.com/codegraph/codegraph-vscode"
     },
     "engines": {
-        "vscode": "^1.85.0"
+        "vscode": "^1.90.0"
     },
     "categories": [
         "Programming Languages",
@@ -62,6 +62,11 @@
             {
                 "command": "codegraph.reindex",
                 "title": "Reindex Workspace",
+                "category": "CodeGraph"
+            },
+            {
+                "command": "codegraph.debugTools",
+                "title": "Debug Language Model Tools",
                 "category": "CodeGraph"
             }
         ],
@@ -151,6 +156,213 @@
                 }
             }
         },
+        "languageModelTools": [
+            {
+                "name": "codegraph_get_dependency_graph",
+                "displayName": "Get Dependency Graph",
+                "description": "Retrieve the dependency graph for a source file showing imports and dependencies",
+                "modelDescription": "Use this tool to understand what files and modules a given file depends on. Returns a graph with nodes (files/modules) and edges (dependency relationships). Useful for understanding module architecture and import chains.",
+                "canBeReferencedInPrompt": true,
+                "toolReferenceName": "dependency_graph",
+                "userDescription": "Analyzes file dependencies and import relationships in your codebase",
+                "tags": ["code-analysis", "dependencies", "architecture"],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "The file URI to analyze (e.g., file:///path/to/file.ts)"
+                        },
+                        "depth": {
+                            "type": "number",
+                            "description": "How many levels of dependencies to traverse (1-10, default: 3)",
+                            "default": 3
+                        },
+                        "includeExternal": {
+                            "type": "boolean",
+                            "description": "Whether to include external dependencies from node_modules/packages",
+                            "default": false
+                        },
+                        "direction": {
+                            "type": "string",
+                            "enum": ["imports", "dependents", "both"],
+                            "description": "Direction to analyze: 'imports' (what this file uses), 'dependents' (what uses this file), or 'both'",
+                            "default": "both"
+                        }
+                    },
+                    "required": ["uri"]
+                }
+            },
+            {
+                "name": "codegraph_get_call_graph",
+                "displayName": "Get Call Graph",
+                "description": "Retrieve the call graph for a function showing callers and callees",
+                "modelDescription": "Use this tool to understand function call relationships. Shows what functions call the target function (callers) and what functions the target calls (callees). Essential for understanding code execution flow and function dependencies.",
+                "canBeReferencedInPrompt": true,
+                "toolReferenceName": "call_graph",
+                "userDescription": "Shows function call relationships and execution flow in your code",
+                "tags": ["code-analysis", "functions", "call-graph"],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "The file URI containing the function"
+                        },
+                        "line": {
+                            "type": "number",
+                            "description": "Line number of the function (0-indexed)"
+                        },
+                        "character": {
+                            "type": "number",
+                            "description": "Character position in the line (0-indexed)",
+                            "default": 0
+                        },
+                        "depth": {
+                            "type": "number",
+                            "description": "How many levels deep to traverse the call graph",
+                            "default": 3
+                        },
+                        "direction": {
+                            "type": "string",
+                            "enum": ["callers", "callees", "both"],
+                            "description": "Direction: 'callers' (who calls this), 'callees' (what this calls), or 'both'",
+                            "default": "both"
+                        }
+                    },
+                    "required": ["uri", "line"]
+                }
+            },
+            {
+                "name": "codegraph_analyze_impact",
+                "displayName": "Analyze Change Impact",
+                "description": "Analyze the impact of modifying, deleting, or renaming a symbol",
+                "modelDescription": "Use this tool before making changes to understand the blast radius. Shows all code that would be affected by changing a function, class, or variable. Returns direct impacts (immediate usages) and indirect impacts (transitive dependencies).",
+                "canBeReferencedInPrompt": true,
+                "toolReferenceName": "impact_analysis",
+                "userDescription": "Analyzes the impact of code changes before you make them",
+                "tags": ["code-analysis", "refactoring", "impact"],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "The file URI containing the symbol"
+                        },
+                        "line": {
+                            "type": "number",
+                            "description": "Line number of the symbol (0-indexed)"
+                        },
+                        "character": {
+                            "type": "number",
+                            "description": "Character position (0-indexed)",
+                            "default": 0
+                        },
+                        "changeType": {
+                            "type": "string",
+                            "enum": ["modify", "delete", "rename"],
+                            "description": "Type of change to analyze",
+                            "default": "modify"
+                        }
+                    },
+                    "required": ["uri", "line"]
+                }
+            },
+            {
+                "name": "codegraph_get_ai_context",
+                "displayName": "Get AI Context",
+                "description": "Get comprehensive code context optimized for AI analysis",
+                "modelDescription": "Use this tool to get rich context about a code location. Returns the primary code, related code (dependencies, callers, etc.), and architectural context. Automatically selects the most relevant related code based on the intent (explain, modify, debug, or test).",
+                "canBeReferencedInPrompt": true,
+                "toolReferenceName": "ai_context",
+                "userDescription": "Provides rich code context for AI analysis and understanding",
+                "tags": ["code-analysis", "ai", "context"],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "The file URI to get context for"
+                        },
+                        "line": {
+                            "type": "number",
+                            "description": "Line number (0-indexed)"
+                        },
+                        "character": {
+                            "type": "number",
+                            "description": "Character position (0-indexed)",
+                            "default": 0
+                        },
+                        "intent": {
+                            "type": "string",
+                            "enum": ["explain", "modify", "debug", "test"],
+                            "description": "What you plan to do with the context. Affects which related code is selected.",
+                            "default": "explain"
+                        },
+                        "maxTokens": {
+                            "type": "number",
+                            "description": "Maximum tokens of context to return",
+                            "default": 4000
+                        }
+                    },
+                    "required": ["uri", "line"]
+                }
+            },
+            {
+                "name": "codegraph_find_related_tests",
+                "displayName": "Find Related Tests",
+                "description": "Find test files and test functions related to a code location",
+                "modelDescription": "Use this tool to discover tests that cover a piece of code. Useful when modifying code to understand what tests need updating, or when debugging to find relevant test cases.",
+                "canBeReferencedInPrompt": true,
+                "toolReferenceName": "related_tests",
+                "userDescription": "Finds tests related to your code for testing and debugging",
+                "tags": ["testing", "code-analysis", "quality"],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "The file URI to find tests for"
+                        },
+                        "line": {
+                            "type": "number",
+                            "description": "Line number (0-indexed)",
+                            "default": 0
+                        }
+                    },
+                    "required": ["uri"]
+                }
+            },
+            {
+                "name": "codegraph_get_symbol_info",
+                "displayName": "Get Symbol Information",
+                "description": "Get detailed information about a symbol (function, class, variable, etc.)",
+                "modelDescription": "Use this tool to get metadata about a symbol: its type, signature, documentation, location, and usage statistics. Quick way to understand what a symbol is and how it's used.",
+                "canBeReferencedInPrompt": true,
+                "toolReferenceName": "symbol_info",
+                "userDescription": "Shows detailed information about code symbols and their usage",
+                "tags": ["code-analysis", "symbols", "documentation"],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "The file URI containing the symbol"
+                        },
+                        "line": {
+                            "type": "number",
+                            "description": "Line number of the symbol (0-indexed)"
+                        },
+                        "character": {
+                            "type": "number",
+                            "description": "Character position (0-indexed)",
+                            "default": 0
+                        }
+                    },
+                    "required": ["uri", "line"]
+                }
+            }
+        ],
         "menus": {
             "editor/context": [
                 {
@@ -183,7 +395,9 @@
         "build-webview": "cd webview && npm run build",
         "package": "vsce package",
         "lint": "eslint src --ext ts",
-        "test": "npm run compile && node ./out/test/runTest.js"
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:e2e": "npm run compile && node ./out/test/runTest.js"
     },
     "devDependencies": {
         "@types/node": "^20.10.0",
@@ -191,8 +405,12 @@
         "@typescript-eslint/eslint-plugin": "^6.13.0",
         "@typescript-eslint/parser": "^6.13.0",
         "@vscode/vsce": "^2.22.0",
+        "@vsforge/config": "file:../vsforge/packages/@vsforge/config",
+        "@vsforge/shim": "file:../vsforge/packages/@vsforge/shim",
+        "@vsforge/test": "file:../vsforge/packages/@vsforge/test",
         "eslint": "^8.55.0",
-        "typescript": "^5.3.0"
+        "typescript": "^5.3.0",
+        "vitest": "^1.0.0"
     },
     "dependencies": {
         "vscode-languageclient": "^9.0.1"
