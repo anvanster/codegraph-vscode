@@ -28,13 +28,13 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 lru = "0.12"
 
-# CodeGraph ecosystem (local development versions with working edge creation)
-codegraph = { path = "../codegraph-monorepo/crates/codegraph" }
-codegraph-parser-api = { path = "../codegraph-monorepo/crates/codegraph-parser-api" }
-codegraph-python = { path = "../codegraph-monorepo/crates/codegraph-python" }
-codegraph-rust = { path = "../codegraph-monorepo/crates/codegraph-rust" }
-codegraph-typescript = { path = "../codegraph-monorepo/crates/codegraph-typescript" }
-codegraph-go = { path = "../codegraph-monorepo/crates/codegraph-go" }
+# CodeGraph ecosystem (published versions with working edge creation)
+codegraph = "0.1.1"
+codegraph-parser-api = "0.1"
+codegraph-python = "0.2.1"
+codegraph-rust = "0.1"
+codegraph-typescript = "0.2"
+codegraph-go = "0.1.1"
 
 [profile.release]
 opt-level = 3

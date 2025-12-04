@@ -197,6 +197,8 @@ dependencies = [
 [[package]]
 name = "codegraph"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1cd36812bf0203056260be348dcb39c154d56dbd6c2ebda061c8369f974c2c3"
 dependencies = [
  "log",
  "rocksdb",
@@ -208,7 +210,9 @@ dependencies = [
 
 [[package]]
 name = "codegraph-go"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5718c2203af479f7af08bc8e8d338cf8a863b29312552e20a6fc3a7e1ad0c9d2"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -246,6 +250,8 @@ dependencies = [
 [[package]]
 name = "codegraph-parser-api"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48f6ded58921fbbaae7112ebc4ffdb6b30b490587a4715e6d2e0eb8e97f1f23d"
 dependencies = [
  "codegraph",
  "serde",
@@ -254,7 +260,9 @@ dependencies = [
 
 [[package]]
 name = "codegraph-python"
-version = "0.2.0"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35df1ed7ec0eb27e7fd984d8ba4b590f804fa3a79316ffb6e092625582831d87"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -271,6 +279,8 @@ dependencies = [
 [[package]]
 name = "codegraph-rust"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "660518de4bec4cd8403468f96391ac8f9535b6a283be9cf58633c9f5842fb606"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -284,7 +294,9 @@ dependencies = [
 
 [[package]]
 name = "codegraph-typescript"
-version = "0.1.0"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2806e7641550c83b4cec07c6b570bbe9464ab28503750d2fa2746c979f713cea"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -818,9 +830,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.177"
+version = "0.2.178"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
+checksum = "37c93d8daa9d8a012fd8ab92f088405fb202ea0b6ab73ee2482ae66af4f42091"
 
 [[package]]
 name = "libloading"
@@ -899,9 +911,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.28"
+version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
+checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "lru"
