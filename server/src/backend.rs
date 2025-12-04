@@ -339,14 +339,6 @@ impl LanguageServer for CodeGraphBackend {
 
             match parser.parse_source(&text, &path, &mut graph) {
                 Ok(file_info) => {
-                    tracing::info!(
-                        "Parse succeeded: {} functions, {} classes, {} traits, {} imports",
-                        file_info.functions.len(),
-                        file_info.classes.len(),
-                        file_info.traits.len(),
-                        file_info.imports.len()
-                    );
-
                     // Update symbol index
                     self.symbol_index.add_file(path.clone(), &file_info, &graph);
 

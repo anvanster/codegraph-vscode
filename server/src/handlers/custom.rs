@@ -66,33 +66,11 @@ impl CodeGraphBackend {
         // Find the file node
         let path_str = path.to_string_lossy().to_string();
 
-        // Debug: log what we're looking for
-        tracing::info!("Looking for nodes with path: {}", path_str);
-
-        // Debug: count nodes by querying all CodeFile and Module nodes
-        if let Ok(file_nodes) = graph.query().node_type(NodeType::CodeFile).execute() {
-            tracing::info!("Total CodeFile nodes in graph: {}", file_nodes.len());
-            for (i, node_id) in file_nodes.iter().take(3).enumerate() {
-                if let Ok(node) = graph.get_node(*node_id) {
-                    let node_path = node.properties.get_string("path").unwrap_or("NO_PATH");
-                    tracing::info!("  CodeFile {}: path={}", i, node_path);
-                }
-            }
-        }
-        if let Ok(module_nodes) = graph.query().node_type(NodeType::Module).execute() {
-            tracing::info!("Total Module nodes in graph: {}", module_nodes.len());
-        }
-        if let Ok(function_nodes) = graph.query().node_type(NodeType::Function).execute() {
-            tracing::info!("Total Function nodes in graph: {}", function_nodes.len());
-        }
-
         let file_nodes = graph
             .query()
             .property("path", path_str.clone())
             .execute()
             .map_err(|_| tower_lsp::jsonrpc::Error::internal_error())?;
-
-        tracing::info!("Found {} matching nodes", file_nodes.len());
 
         if file_nodes.is_empty() {
             return Ok(DependencyGraphResponse {
@@ -158,17 +136,6 @@ impl CodeGraphBackend {
                     "imports",
                 );
 
-                tracing::info!("Node {} has {} edges", node_id, collected_edges.len());
-
-                // Debug: log edge types
-                let edge_type_counts: std::collections::HashMap<String, usize> = collected_edges
-                    .iter()
-                    .fold(std::collections::HashMap::new(), |mut acc, (_, _, et)| {
-                        *acc.entry(format!("{:?}", et)).or_insert(0) += 1;
-                        acc
-                    });
-                tracing::info!("Edge types: {:?}", edge_type_counts);
-
                 for (source_id, target_id, edge_type) in collected_edges {
                     if edge_type == EdgeType::Imports {
                         edges.push(DependencyEdge {
@@ -192,7 +159,6 @@ impl CodeGraphBackend {
             }
         }
 
-        tracing::info!("Returning dependency graph with {} nodes and {} edges", nodes.len(), edges.len());
         Ok(DependencyGraphResponse { nodes, edges })
     }
 
@@ -312,23 +278,10 @@ impl CodeGraphBackend {
         let depth = params.depth.unwrap_or(3);
         let position = params.position;
 
-        // Debug: log what we're looking for
-        let path_str = path.to_string_lossy().to_string();
-        tracing::info!("Call graph request for: {} at position {}:{}", path_str, position.line, position.character);
-
-        // Debug: count function nodes
-        if let Ok(function_nodes) = graph.query().node_type(NodeType::Function).execute() {
-            tracing::info!("Total Function nodes in graph: {}", function_nodes.len());
-        }
-
         // Find node at position
         let node_id = match self.find_node_at_position(&graph, &path, position)? {
-            Some(id) => {
-                tracing::info!("Found node at position: {:?}", id);
-                id
-            },
+            Some(id) => id,
             None => {
-                tracing::warn!("No node found at position {}:{}", position.line, position.character);
                 return Ok(CallGraphResponse {
                     root: None,
                     nodes: Vec::new(),
