@@ -35,6 +35,9 @@ pub struct CodeGraphBackend {
 
     /// Symbol index for fast lookups.
     pub symbol_index: Arc<SymbolIndex>,
+
+    /// Workspace folders
+    workspace_folders: Arc<RwLock<Vec<std::path::PathBuf>>>,
 }
 
 impl CodeGraphBackend {
@@ -49,6 +52,7 @@ impl CodeGraphBackend {
             file_cache: Arc::new(DashMap::new()),
             query_cache: Arc::new(QueryCache::new(1000)),
             symbol_index: Arc::new(SymbolIndex::new()),
+            workspace_folders: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
@@ -67,6 +71,70 @@ impl CodeGraphBackend {
         // Invalidate caches
         self.query_cache.invalidate_file(&path.to_path_buf());
         self.symbol_index.remove_file(path);
+    }
+
+    /// Index all supported files in a directory
+    fn index_directory<'a>(&'a self, dir: &'a std::path::Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = usize> + Send + 'a>> {
+        Box::pin(async move {
+            use std::fs;
+
+            let mut indexed_count = 0;
+            let supported_extensions = self.parsers.supported_extensions();
+
+            tracing::info!("Indexing directory: {:?}", dir);
+
+            if let Ok(entries) = fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+
+                    // Skip hidden files and directories
+                    if let Some(name) = path.file_name() {
+                        if name.to_string_lossy().starts_with('.') {
+                            continue;
+                        }
+                    }
+
+                    if path.is_dir() {
+                        // Skip common directories
+                        let dir_name = path.file_name().unwrap().to_string_lossy();
+                        if matches!(dir_name.as_ref(), "node_modules" | "target" | "dist" | "build" | ".git" | "__pycache__") {
+                            continue;
+                        }
+
+                        // Recursively index subdirectories
+                        indexed_count += self.index_directory(&path).await;
+                    } else if path.is_file() {
+                        // Check if file has supported extension
+                        if let Some(ext) = path.extension() {
+                            let ext_str = ext.to_string_lossy();
+                            if supported_extensions.iter().any(|&e| e.trim_start_matches('.') == ext_str) {
+                                // Parse the file
+                                if let Ok(content) = fs::read_to_string(&path) {
+                                    if let Some(parser) = self.parsers.parser_for_path(&path) {
+                                        let mut graph = self.graph.write().await;
+                                        match parser.parse_source(&content, &path, &mut graph) {
+                                            Ok(file_info) => {
+                                                self.symbol_index.add_file(path.clone(), &file_info, &graph);
+                                                self.file_cache.insert(
+                                                    Url::from_file_path(&path).unwrap(),
+                                                    file_info
+                                                );
+                                                indexed_count += 1;
+                                            }
+                                            Err(e) => {
+                                                tracing::warn!("Failed to parse {:?}: {}", path, e);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            indexed_count
+        })
     }
 
     /// Find node at the given position.
@@ -266,11 +334,13 @@ impl LanguageServer for CodeGraphBackend {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
         tracing::info!("Initializing CodeGraph LSP server");
 
-        // Index workspace folders
+        // Store workspace folders
         if let Some(folders) = params.workspace_folders {
+            let mut workspace_folders = self.workspace_folders.write().await;
             for folder in folders {
                 if let Ok(path) = folder.uri.to_file_path() {
                     tracing::info!("Workspace folder: {}", path.display());
+                    workspace_folders.push(path);
                 }
             }
         }
@@ -326,6 +396,8 @@ impl LanguageServer for CodeGraphBackend {
         let uri = params.text_document.uri;
         let text = params.text_document.text;
 
+        tracing::info!("did_open called for: {}", uri);
+
         let path = match uri.to_file_path() {
             Ok(p) => p,
             Err(_) => {
@@ -335,10 +407,12 @@ impl LanguageServer for CodeGraphBackend {
         };
 
         if let Some(parser) = self.parsers.parser_for_path(&path) {
+            tracing::info!("Parser found for: {:?}", path);
             let mut graph = self.graph.write().await;
 
             match parser.parse_source(&text, &path, &mut graph) {
                 Ok(file_info) => {
+                    tracing::info!("Parse succeeded for: {:?}", path);
                     // Update symbol index
                     self.symbol_index.add_file(path.clone(), &file_info, &graph);
 
@@ -350,11 +424,14 @@ impl LanguageServer for CodeGraphBackend {
                         .await;
                 }
                 Err(e) => {
+                    tracing::error!("Parse failed for {:?}: {}", path, e);
                     self.client
                         .log_message(MessageType::ERROR, format!("Parse error in {}: {}", uri, e))
                         .await;
                 }
             }
+        } else {
+            tracing::warn!("No parser found for: {:?}", path);
         }
     }
 
@@ -760,7 +837,7 @@ impl LanguageServer for CodeGraphBackend {
             }
 
             "codegraph.reindexWorkspace" => {
-                // Clear and reindex
+                // Clear graph and caches
                 {
                     let mut graph = self.graph.write().await;
                     *graph = CodeGraph::in_memory().expect("Failed to create graph");
@@ -769,7 +846,24 @@ impl LanguageServer for CodeGraphBackend {
                 self.file_cache.clear();
 
                 self.client
-                    .log_message(MessageType::INFO, "Workspace reindexed")
+                    .log_message(MessageType::INFO, "Reindexing workspace...")
+                    .await;
+
+                // Index all workspace folders
+                let workspace_folders = self.workspace_folders.read().await.clone();
+                let mut total_indexed = 0;
+
+                for folder in workspace_folders {
+                    tracing::info!("Indexing folder: {:?}", folder);
+                    let count = self.index_directory(&folder).await;
+                    total_indexed += count;
+                }
+
+                self.client
+                    .log_message(
+                        MessageType::INFO,
+                        format!("Workspace reindexed: {} files", total_indexed)
+                    )
                     .await;
 
                 Ok(None)
