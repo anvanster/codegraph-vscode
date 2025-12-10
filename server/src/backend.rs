@@ -253,6 +253,75 @@ impl CodeGraphBackend {
         Ok(None)
     }
 
+    /// Find the nearest symbol to a position, or the first symbol in the file.
+    /// This is used as a fallback when no symbol is found at the exact cursor position.
+    /// Returns (node_id, was_fallback) where was_fallback indicates if this was not an exact match.
+    pub fn find_nearest_node(
+        &self,
+        graph: &CodeGraph,
+        path: &std::path::Path,
+        position: Position,
+    ) -> LspResult<Option<(NodeId, bool)>> {
+        // First try exact position match
+        if let Some(node_id) = self.find_node_at_position(graph, path, position)? {
+            return Ok(Some((node_id, false)));
+        }
+
+        // LSP positions are 0-indexed, our index stores 1-indexed
+        let target_line = (position.line + 1) as i64;
+
+        // Get all symbols in the file
+        let file_symbols = self.symbol_index.get_file_symbols(path);
+
+        if file_symbols.is_empty() {
+            tracing::info!("No symbols in file {:?}", path);
+            return Ok(None);
+        }
+
+        // Find the nearest symbol by line distance
+        let mut best_match: Option<(NodeId, i64)> = None;
+
+        for node_id in file_symbols {
+            if let Ok(node) = graph.get_node(node_id) {
+                let start_line = node.properties.get_int("line_start").unwrap_or(0);
+                let end_line = node.properties.get_int("line_end").unwrap_or(0);
+
+                // Calculate distance - prefer symbols that start after cursor (looking ahead)
+                // or symbols that contain the cursor line
+                let distance = if target_line >= start_line && target_line <= end_line {
+                    // Cursor is within this symbol's range
+                    0
+                } else if start_line > target_line {
+                    // Symbol starts after cursor - prefer these (looking forward)
+                    start_line - target_line
+                } else {
+                    // Symbol ends before cursor - less preferred
+                    (target_line - end_line) + 1000 // Add penalty for looking backward
+                };
+
+                if best_match.is_none() || distance < best_match.unwrap().1 {
+                    best_match = Some((node_id, distance));
+                }
+            }
+        }
+
+        if let Some((node_id, _)) = best_match {
+            if let Ok(node) = graph.get_node(node_id) {
+                let name = node.properties.get_string("name").unwrap_or("unknown");
+                tracing::info!(
+                    "Fallback: found nearest symbol '{}' for position {}:{} in {:?}",
+                    name,
+                    target_line,
+                    position.character,
+                    path
+                );
+            }
+            return Ok(Some((node_id, true)));
+        }
+
+        Ok(None)
+    }
+
     /// Find all edges connected to a node.
     pub fn get_connected_edges(
         &self,

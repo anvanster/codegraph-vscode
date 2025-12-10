@@ -78,6 +78,12 @@ pub struct ArchitectureInfo {
 pub struct ContextMetadata {
     pub total_tokens: usize,
     pub query_time: u64,
+    /// Indicates if the symbol was found via fallback (nearest symbol) rather than exact position match
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub used_fallback: Option<bool>,
+    /// Message explaining fallback behavior if used
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fallback_message: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -150,10 +156,14 @@ impl CodeGraphBackend {
         let graph = self.graph.read().await;
         let max_tokens = params.max_tokens.unwrap_or(4000);
 
-        // Find node at position
-        let node_id = self
-            .find_node_at_position(&graph, &path, params.position)?
-            .ok_or_else(|| tower_lsp::jsonrpc::Error::invalid_params("No symbol at position"))?;
+        // Find node at position, with fallback to nearest symbol
+        let (node_id, used_fallback) = self
+            .find_nearest_node(&graph, &path, params.position)?
+            .ok_or_else(|| {
+                tower_lsp::jsonrpc::Error::invalid_params(
+                    "No symbols found in file. Try indexing the workspace first."
+                )
+            })?;
 
         let node = graph
             .get_node(node_id)
@@ -208,6 +218,16 @@ impl CodeGraphBackend {
 
         let query_time = start_time.elapsed().as_millis() as u64;
 
+        // Build fallback message if applicable
+        let fallback_message = if used_fallback {
+            Some(format!(
+                "No symbol at cursor position. Using nearest symbol '{}' instead.",
+                name
+            ))
+        } else {
+            None
+        };
+
         Ok(AIContextResponse {
             primary_context,
             related_symbols,
@@ -217,6 +237,8 @@ impl CodeGraphBackend {
             metadata: ContextMetadata {
                 total_tokens: budget.used,
                 query_time,
+                used_fallback: if used_fallback { Some(true) } else { None },
+                fallback_message,
             },
         })
     }
