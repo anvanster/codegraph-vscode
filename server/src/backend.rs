@@ -6,12 +6,13 @@ use crate::cache::QueryCache;
 use crate::error::{LspError, LspResult};
 use crate::index::SymbolIndex;
 use crate::parser_registry::ParserRegistry;
+use crate::watcher::FileWatcher;
 use codegraph::{CodeGraph, Direction, EdgeType, NodeId, NodeType};
 use codegraph_parser_api::FileInfo;
 use dashmap::DashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
@@ -38,6 +39,9 @@ pub struct CodeGraphBackend {
 
     /// Workspace folders
     workspace_folders: Arc<RwLock<Vec<std::path::PathBuf>>>,
+
+    /// File system watcher for incremental updates.
+    file_watcher: Arc<Mutex<Option<FileWatcher>>>,
 }
 
 impl CodeGraphBackend {
@@ -53,6 +57,49 @@ impl CodeGraphBackend {
             query_cache: Arc::new(QueryCache::new(1000)),
             symbol_index: Arc::new(SymbolIndex::new()),
             workspace_folders: Arc::new(RwLock::new(Vec::new())),
+            file_watcher: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Start the file watcher for the given workspace folders.
+    pub async fn start_file_watcher(&self, folders: &[PathBuf]) {
+        // Create the file watcher
+        match FileWatcher::new(
+            Arc::clone(&self.graph),
+            Arc::clone(&self.parsers),
+            self.client.clone(),
+        ) {
+            Ok(mut watcher) => {
+                // Start watching each folder
+                for folder in folders {
+                    if let Err(e) = watcher.watch(folder) {
+                        self.client
+                            .log_message(
+                                MessageType::WARNING,
+                                format!("Failed to watch {}: {}", folder.display(), e),
+                            )
+                            .await;
+                    } else {
+                        self.client
+                            .log_message(
+                                MessageType::INFO,
+                                format!("Watching folder: {}", folder.display()),
+                            )
+                            .await;
+                    }
+                }
+
+                // Store the watcher
+                *self.file_watcher.lock().await = Some(watcher);
+            }
+            Err(e) => {
+                self.client
+                    .log_message(
+                        MessageType::ERROR,
+                        format!("Failed to create file watcher: {}", e),
+                    )
+                    .await;
+            }
         }
     }
 
@@ -164,22 +211,20 @@ impl CodeGraphBackend {
 
         tracing::info!("Not found in symbol index, trying graph query");
 
-        // Fallback to graph query
-        let path_str = path.to_string_lossy().to_string();
-        let nodes = graph
-            .query()
-            .property("path", path_str.clone())
-            .execute()
-            .map_err(|e| LspError::Graph(e.to_string()))?;
+        // Fallback: Get all nodes from the symbol index for this file and check positions
+        // The graph stores line_start/line_end (not start_line/end_line)
+        let file_symbols = self.symbol_index.get_file_symbols(path);
 
-        tracing::info!("Graph query for path '{}' returned {} nodes", path_str, nodes.len());
+        tracing::info!("Symbol index returned {} symbols for {:?}", file_symbols.len(), path);
 
-        for node_id in nodes {
+        for node_id in file_symbols {
             if let Ok(node) = graph.get_node(node_id) {
-                let start_line = node.properties.get_int("start_line").unwrap_or(0);
-                let end_line = node.properties.get_int("end_line").unwrap_or(0);
-                let start_col = node.properties.get_int("start_col").unwrap_or(0);
-                let end_col = node.properties.get_int("end_col").unwrap_or(i64::MAX);
+                // Parsers use line_start/line_end (not start_line/end_line)
+                let start_line = node.properties.get_int("line_start").unwrap_or(0);
+                let end_line = node.properties.get_int("line_end").unwrap_or(0);
+                // Column info not available from most parsers, default to full line
+                let start_col = node.properties.get_int("col_start").unwrap_or(0);
+                let end_col = node.properties.get_int("col_end").unwrap_or(i64::MAX);
 
                 tracing::info!(
                     "Checking node {:?} '{}' at {}:{} to {}:{}",
@@ -286,22 +331,52 @@ impl CodeGraphBackend {
             .get_node(node_id)
             .map_err(|e| LspError::Graph(e.to_string()))?;
 
-        let path = node
-            .properties
-            .get_string("path")
-            .ok_or_else(|| LspError::NodeNotFound("Missing path property".into()))?;
+        // Try to get path from node properties first, fallback to symbol index
+        let path_str = match node.properties.get_string("path") {
+            Some(p) => p.to_string(),
+            None => {
+                // Fallback: look up file path from symbol index
+                match self.symbol_index.find_file_for_node(node_id) {
+                    Some(path_buf) => path_buf.to_string_lossy().to_string(),
+                    None => {
+                        let node_name = node.properties.get_string("name").unwrap_or("<unnamed>");
+                        let node_type = format!("{}", node.node_type);
+                        tracing::warn!(
+                            "Cannot determine file path for node {}: {} '{}' (not in symbol index)",
+                            node_id,
+                            node_type,
+                            node_name
+                        );
+                        return Err(LspError::NodeNotFound(format!(
+                            "Cannot determine file path for {} '{}'",
+                            node_type,
+                            node_name
+                        )));
+                    }
+                }
+            }
+        };
 
-        let start_line = node.properties.get_int("start_line").unwrap_or(1) as u32;
-        let start_col = node.properties.get_int("start_col").unwrap_or(0) as u32;
-        let end_line = node.properties.get_int("end_line").unwrap_or(start_line as i64) as u32;
-        let end_col = node.properties.get_int("end_col").unwrap_or(0) as u32;
+        // Support both property name conventions (line_start or start_line)
+        let start_line = node.properties.get_int("line_start")
+            .or_else(|| node.properties.get_int("start_line"))
+            .unwrap_or(1) as u32;
+        let start_col = node.properties.get_int("col_start")
+            .or_else(|| node.properties.get_int("start_col"))
+            .unwrap_or(0) as u32;
+        let end_line = node.properties.get_int("line_end")
+            .or_else(|| node.properties.get_int("end_line"))
+            .unwrap_or(start_line as i64) as u32;
+        let end_col = node.properties.get_int("col_end")
+            .or_else(|| node.properties.get_int("end_col"))
+            .unwrap_or(0) as u32;
 
         // Convert to 0-indexed
         let start_line = start_line.saturating_sub(1);
         let end_line = end_line.saturating_sub(1);
 
         Ok(Location {
-            uri: Url::from_file_path(path).map_err(|_| LspError::InvalidUri(path.to_string()))?,
+            uri: Url::from_file_path(&path_str).map_err(|_| LspError::InvalidUri(path_str.clone()))?,
             range: Range {
                 start: Position {
                     line: start_line,
@@ -327,19 +402,33 @@ impl CodeGraphBackend {
             return Ok(Some(source.to_string()));
         }
 
-        // Otherwise, try to read from file
-        if let Some(path_str) = node.properties.get_string("path") {
-            let path = PathBuf::from(path_str);
-            if path.exists() {
-                let start_line = node.properties.get_int("start_line").unwrap_or(1) as usize;
-                let end_line = node.properties.get_int("end_line").unwrap_or(start_line as i64) as usize;
+        // Try to get path from node properties, fallback to symbol index
+        let path = match node.properties.get_string("path") {
+            Some(p) => PathBuf::from(p),
+            None => {
+                // Fallback: look up file path from symbol index
+                match self.symbol_index.find_file_for_node(node_id) {
+                    Some(p) => p,
+                    None => return Ok(None),
+                }
+            }
+        };
 
-                if let Ok(content) = tokio::fs::read_to_string(&path).await {
-                    let lines: Vec<&str> = content.lines().collect();
-                    if start_line > 0 && end_line <= lines.len() {
-                        let source: String = lines[start_line - 1..end_line].join("\n");
-                        return Ok(Some(source));
-                    }
+        // Try to read from file
+        if path.exists() {
+            // Support both property name conventions
+            let start_line = node.properties.get_int("line_start")
+                .or_else(|| node.properties.get_int("start_line"))
+                .unwrap_or(1) as usize;
+            let end_line = node.properties.get_int("line_end")
+                .or_else(|| node.properties.get_int("end_line"))
+                .unwrap_or(start_line as i64) as usize;
+
+            if let Ok(content) = tokio::fs::read_to_string(&path).await {
+                let lines: Vec<&str> = content.lines().collect();
+                if start_line > 0 && end_line <= lines.len() {
+                    let source: String = lines[start_line - 1..end_line].join("\n");
+                    return Ok(Some(source));
                 }
             }
         }
@@ -410,6 +499,33 @@ impl LanguageServer for CodeGraphBackend {
         self.client
             .log_message(MessageType::INFO, "CodeGraph LSP server initialized")
             .await;
+
+        // Index workspace folders
+        let folders = self.workspace_folders.read().await.clone();
+        let mut total_indexed = 0;
+
+        for folder in &folders {
+            let count = self.index_directory(folder).await;
+            total_indexed += count;
+            self.client
+                .log_message(
+                    MessageType::INFO,
+                    format!("Indexed {} files from {}", count, folder.display()),
+                )
+                .await;
+        }
+
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!("Total files indexed: {}", total_indexed),
+            )
+            .await;
+
+        // Start file watcher for incremental updates
+        if !folders.is_empty() {
+            self.start_file_watcher(&folders).await;
+        }
     }
 
     async fn shutdown(&self) -> Result<()> {
@@ -531,11 +647,22 @@ impl LanguageServer for CodeGraphBackend {
 
         // Check if this is a reference - find its definition
         if let Some(def_node_id) = self.find_definition_for_reference(&graph, node_id)? {
-            let location = self.node_to_location(&graph, def_node_id)?;
-            return Ok(Some(GotoDefinitionResponse::Scalar(location)));
+            tracing::info!(
+                "goto_definition: found reference node {} -> definition node {}",
+                node_id,
+                def_node_id
+            );
+            match self.node_to_location(&graph, def_node_id) {
+                Ok(location) => return Ok(Some(GotoDefinitionResponse::Scalar(location))),
+                Err(e) => {
+                    // Log the error but try to return the source location as fallback
+                    tracing::warn!("Failed to get definition location: {}, trying source node", e);
+                    // Fall through to try source node
+                }
+            }
         }
 
-        // Already at definition
+        // Already at definition (or fallback if definition lookup failed)
         let location = self.node_to_location(&graph, node_id)?;
         Ok(Some(GotoDefinitionResponse::Scalar(location)))
     }

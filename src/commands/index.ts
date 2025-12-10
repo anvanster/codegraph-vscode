@@ -183,31 +183,31 @@ export function registerCommands(
             }
     });
 
-    // Open AI Chat
+    // Open AI Chat - Opens VS Code's chat with @codegraph participant
     safeRegisterCommand('codegraph.openAIChat', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                vscode.window.showWarningMessage('CodeGraph: No active editor');
-                return;
-            }
-
-            // For now, just get context and show it
-            // Full chat panel implementation would go here
+            // Open the VS Code chat view and suggest using @codegraph
             try {
-                const context = await aiProvider.provideCodeContext(
-                    editor.document,
-                    editor.selection.active,
-                    'explain'
-                );
-
-                // Create a new document with the context
-                const doc = await vscode.workspace.openTextDocument({
-                    language: 'markdown',
-                    content: formatAIContext(context),
+                // Try to open the chat panel with a suggested message
+                await vscode.commands.executeCommand('workbench.action.chat.open', {
+                    query: '@codegraph '
                 });
-                await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
-            } catch (error) {
-                vscode.window.showErrorMessage(`CodeGraph: Failed to get AI context: ${error}`);
+            } catch {
+                // Fallback: just open chat panel if the query parameter isn't supported
+                try {
+                    await vscode.commands.executeCommand('workbench.action.chat.open');
+                    vscode.window.showInformationMessage(
+                        'CodeGraph: Use @codegraph in the chat to get code context. ' +
+                        'Try: @codegraph explain this function'
+                    );
+                } catch (error) {
+                    // Chat panel not available - show helpful message
+                    vscode.window.showInformationMessage(
+                        'CodeGraph provides AI context via:\n' +
+                        '• @codegraph in any AI chat (Claude, Copilot)\n' +
+                        '• Language Model Tools (codegraph_* tools)\n' +
+                        'Open any AI chat and type @codegraph'
+                    );
+                }
             }
     });
 
@@ -306,37 +306,3 @@ function showMetricsPanel(response: ParserMetricsResponse): void {
     outputChannel.show();
 }
 
-/**
- * Format AI context for display
- */
-function formatAIContext(context: {
-    primary: { code: string; language: string; description: string };
-    related: Array<{ code: string; relationship: string; relevance: number }>;
-    architecture?: { module: string; neighbors: string[] };
-}): string {
-    let content = '# CodeGraph AI Context\n\n';
-
-    content += `## Primary Code\n`;
-    content += `*${context.primary.description}*\n\n`;
-    content += '```' + context.primary.language + '\n';
-    content += context.primary.code;
-    content += '\n```\n\n';
-
-    if (context.related.length > 0) {
-        content += '## Related Code\n\n';
-        for (const related of context.related.slice(0, 5)) {
-            content += `### ${related.relationship} (relevance: ${(related.relevance * 100).toFixed(0)}%)\n`;
-            content += '```\n';
-            content += related.code;
-            content += '\n```\n\n';
-        }
-    }
-
-    if (context.architecture) {
-        content += '## Architecture\n\n';
-        content += `- **Module**: ${context.architecture.module}\n`;
-        content += `- **Neighbors**: ${context.architecture.neighbors.join(', ')}\n`;
-    }
-
-    return content;
-}

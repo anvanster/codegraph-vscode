@@ -145,6 +145,63 @@ impl Default for ParserRegistry {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+    use tempfile::NamedTempFile;
+    use std::io::Write;
+
+    #[test]
+    fn test_parser_registry_new() {
+        let registry = ParserRegistry::new();
+        // Should have parsers for all four languages
+        assert!(registry.get_parser("python").is_some());
+        assert!(registry.get_parser("rust").is_some());
+        assert!(registry.get_parser("typescript").is_some());
+        assert!(registry.get_parser("go").is_some());
+    }
+
+    #[test]
+    fn test_parser_registry_default() {
+        let registry = ParserRegistry::default();
+        // Should be equivalent to new()
+        assert!(registry.get_parser("python").is_some());
+    }
+
+    #[test]
+    fn test_parser_registry_with_config() {
+        let config = ParserConfig::default();
+        let registry = ParserRegistry::with_config(config);
+        assert!(registry.get_parser("python").is_some());
+    }
+
+    #[test]
+    fn test_get_parser_case_insensitive() {
+        let registry = ParserRegistry::new();
+
+        assert!(registry.get_parser("Python").is_some());
+        assert!(registry.get_parser("PYTHON").is_some());
+        assert!(registry.get_parser("Rust").is_some());
+        assert!(registry.get_parser("RUST").is_some());
+        assert!(registry.get_parser("TypeScript").is_some());
+        assert!(registry.get_parser("Go").is_some());
+    }
+
+    #[test]
+    fn test_get_parser_javascript_variants() {
+        let registry = ParserRegistry::new();
+
+        // All JS variants should return the typescript parser
+        assert!(registry.get_parser("javascript").is_some());
+        assert!(registry.get_parser("typescriptreact").is_some());
+        assert!(registry.get_parser("javascriptreact").is_some());
+    }
+
+    #[test]
+    fn test_get_parser_unknown_language() {
+        let registry = ParserRegistry::new();
+
+        assert!(registry.get_parser("cobol").is_none());
+        assert!(registry.get_parser("unknown").is_none());
+        assert!(registry.get_parser("").is_none());
+    }
 
     #[test]
     fn test_parser_for_path() {
@@ -156,6 +213,14 @@ mod tests {
         assert!(registry.parser_for_path(&PathBuf::from("test.js")).is_some());
         assert!(registry.parser_for_path(&PathBuf::from("test.go")).is_some());
         assert!(registry.parser_for_path(&PathBuf::from("test.txt")).is_none());
+    }
+
+    #[test]
+    fn test_parser_for_path_react_extensions() {
+        let registry = ParserRegistry::new();
+
+        assert!(registry.parser_for_path(&PathBuf::from("component.tsx")).is_some());
+        assert!(registry.parser_for_path(&PathBuf::from("component.jsx")).is_some());
     }
 
     #[test]
@@ -182,5 +247,144 @@ mod tests {
             registry.language_for_path(&PathBuf::from("test.go")),
             Some("go")
         );
+    }
+
+    #[test]
+    fn test_language_for_path_react_extensions() {
+        let registry = ParserRegistry::new();
+
+        assert_eq!(
+            registry.language_for_path(&PathBuf::from("component.tsx")),
+            Some("typescript")
+        );
+        assert_eq!(
+            registry.language_for_path(&PathBuf::from("component.jsx")),
+            Some("javascript")
+        );
+    }
+
+    #[test]
+    fn test_language_for_path_unknown() {
+        let registry = ParserRegistry::new();
+
+        assert_eq!(registry.language_for_path(&PathBuf::from("test.txt")), None);
+        assert_eq!(registry.language_for_path(&PathBuf::from("Makefile")), None);
+    }
+
+    #[test]
+    fn test_supported_extensions() {
+        let registry = ParserRegistry::new();
+        let extensions = registry.supported_extensions();
+
+        // Check that we have extensions for all 4 languages
+        // (exact extension names may vary by parser implementation)
+        assert!(!extensions.is_empty());
+        assert!(extensions.len() >= 4); // At least one extension per language
+    }
+
+    #[test]
+    fn test_can_parse() {
+        let registry = ParserRegistry::new();
+
+        assert!(registry.can_parse(Path::new("test.py")));
+        assert!(registry.can_parse(Path::new("test.rs")));
+        assert!(registry.can_parse(Path::new("test.ts")));
+        assert!(registry.can_parse(Path::new("test.js")));
+        assert!(registry.can_parse(Path::new("test.go")));
+        assert!(!registry.can_parse(Path::new("test.txt")));
+        assert!(!registry.can_parse(Path::new("test.md")));
+    }
+
+    #[test]
+    fn test_all_metrics() {
+        let registry = ParserRegistry::new();
+        let metrics = registry.all_metrics();
+
+        assert_eq!(metrics.len(), 4);
+        assert_eq!(metrics[0].0, "python");
+        assert_eq!(metrics[1].0, "rust");
+        assert_eq!(metrics[2].0, "typescript");
+        assert_eq!(metrics[3].0, "go");
+    }
+
+    #[test]
+    fn test_parse_source_python() {
+        let registry = ParserRegistry::new();
+        let mut graph = CodeGraph::in_memory().unwrap();
+        let source = "def hello():\n    print('hello')\n";
+        let path = Path::new("test.py");
+
+        let result = registry.parse_source(source, path, &mut graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_source_rust() {
+        let registry = ParserRegistry::new();
+        let mut graph = CodeGraph::in_memory().unwrap();
+        let source = "fn hello() { println!(\"hello\"); }";
+        let path = Path::new("test.rs");
+
+        let result = registry.parse_source(source, path, &mut graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_source_typescript() {
+        let registry = ParserRegistry::new();
+        let mut graph = CodeGraph::in_memory().unwrap();
+        let source = "function hello(): void { console.log('hello'); }";
+        let path = Path::new("test.ts");
+
+        let result = registry.parse_source(source, path, &mut graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_source_go() {
+        let registry = ParserRegistry::new();
+        let mut graph = CodeGraph::in_memory().unwrap();
+        let source = "package main\n\nfunc hello() { fmt.Println(\"hello\") }";
+        let path = Path::new("test.go");
+
+        let result = registry.parse_source(source, path, &mut graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_source_unsupported() {
+        let registry = ParserRegistry::new();
+        let mut graph = CodeGraph::in_memory().unwrap();
+        let source = "some content";
+        let path = Path::new("test.txt");
+
+        let result = registry.parse_source(source, path, &mut graph);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_file() {
+        let registry = ParserRegistry::new();
+        let mut graph = CodeGraph::in_memory().unwrap();
+
+        // Create a temporary Python file
+        let mut temp_file = NamedTempFile::with_suffix(".py").unwrap();
+        writeln!(temp_file, "def test_function():\n    pass").unwrap();
+
+        let result = registry.parse_file(temp_file.path(), &mut graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_file_unsupported() {
+        let registry = ParserRegistry::new();
+        let mut graph = CodeGraph::in_memory().unwrap();
+
+        // Create a temporary text file
+        let mut temp_file = NamedTempFile::with_suffix(".txt").unwrap();
+        writeln!(temp_file, "some text content").unwrap();
+
+        let result = registry.parse_file(temp_file.path(), &mut graph);
+        assert!(result.is_err());
     }
 }

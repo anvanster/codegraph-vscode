@@ -1,11 +1,41 @@
 //! Custom LSP request handlers for graph-based features.
 
 use crate::backend::CodeGraphBackend;
-use codegraph::{CodeGraph, Direction, EdgeType, NodeId};
+use codegraph::{CodeGraph, Direction, EdgeType, Node, NodeId};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashSet, VecDeque};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::{Position, Range, Url};
+
+/// Helper to get line position from node properties.
+/// Supports both property name conventions (line_start or start_line).
+fn get_line_start(node: &Node) -> u32 {
+    node.properties.get_int("line_start")
+        .or_else(|| node.properties.get_int("start_line"))
+        .map(|v| v as u32)
+        .unwrap_or(1)
+}
+
+fn get_line_end(node: &Node, default: u32) -> u32 {
+    node.properties.get_int("line_end")
+        .or_else(|| node.properties.get_int("end_line"))
+        .map(|v| v as u32)
+        .unwrap_or(default)
+}
+
+fn get_col_start(node: &Node) -> u32 {
+    node.properties.get_int("col_start")
+        .or_else(|| node.properties.get_int("start_col"))
+        .map(|v| v as u32)
+        .unwrap_or(0)
+}
+
+fn get_col_end(node: &Node) -> u32 {
+    node.properties.get_int("col_end")
+        .or_else(|| node.properties.get_int("end_col"))
+        .map(|v| v as u32)
+        .unwrap_or(0)
+}
 
 // ==========================================
 // Dependency Graph Request
@@ -316,28 +346,10 @@ impl CodeGraphBackend {
                     .to_string();
                 let node_path = node.properties.get_string("path").unwrap_or("").to_string();
 
-                let start_line: u32 = node
-                    .properties
-                    .get_int("start_line")
-                    .map(|v| v as u32)
-                    .unwrap_or(1)
-                    .saturating_sub(1);
-                let start_col: u32 = node
-                    .properties
-                    .get_int("start_col")
-                    .map(|v| v as u32)
-                    .unwrap_or(0);
-                let end_line: u32 = node
-                    .properties
-                    .get_int("end_line")
-                    .map(|v| v as u32)
-                    .unwrap_or(start_line + 1)
-                    .saturating_sub(1);
-                let end_col: u32 = node
-                    .properties
-                    .get_int("end_col")
-                    .map(|v| v as u32)
-                    .unwrap_or(0);
+                let start_line = get_line_start(&node).saturating_sub(1);
+                let start_col = get_col_start(&node);
+                let end_line = get_line_end(&node, start_line + 2).saturating_sub(1);
+                let end_col = get_col_end(&node);
 
                 let func_node = FunctionNode {
                     id: current_id.to_string(),
@@ -505,28 +517,10 @@ impl CodeGraphBackend {
 
                 affected_files.insert(ref_path.clone());
 
-                let start_line: u32 = ref_node
-                    .properties
-                    .get_int("start_line")
-                    .map(|v| v as u32)
-                    .unwrap_or(1)
-                    .saturating_sub(1);
-                let start_col: u32 = ref_node
-                    .properties
-                    .get_int("start_col")
-                    .map(|v| v as u32)
-                    .unwrap_or(0);
-                let end_line: u32 = ref_node
-                    .properties
-                    .get_int("end_line")
-                    .map(|v| v as u32)
-                    .unwrap_or(start_line + 1)
-                    .saturating_sub(1);
-                let end_col: u32 = ref_node
-                    .properties
-                    .get_int("end_col")
-                    .map(|v| v as u32)
-                    .unwrap_or(0);
+                let start_line = get_line_start(&ref_node).saturating_sub(1);
+                let start_col = get_col_start(&ref_node);
+                let end_line = get_line_end(&ref_node, start_line + 2).saturating_sub(1);
+                let end_col = get_col_end(&ref_node);
 
                 let impact_type = match edge_type {
                     EdgeType::Calls => "caller",

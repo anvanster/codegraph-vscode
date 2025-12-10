@@ -219,6 +219,17 @@ impl SymbolIndex {
         None
     }
 
+    /// Find the file path for a given node ID by reverse lookup.
+    /// This is useful when nodes don't have a `path` property set directly.
+    pub fn find_file_for_node(&self, node_id: NodeId) -> Option<PathBuf> {
+        for entry in self.by_file.iter() {
+            if entry.value().contains(&node_id) {
+                return Some(entry.key().clone());
+            }
+        }
+        None
+    }
+
     /// Clear all indexes.
     pub fn clear(&self) {
         self.by_name.clear();
@@ -251,12 +262,30 @@ pub struct IndexStats {
 }
 
 /// Extract range from node properties.
+/// Note: codegraph parsers use line_start/line_end, not start_line/end_line
 fn extract_range(properties: &PropertyMap) -> Option<IndexRange> {
+    // Try both property name conventions for compatibility
+    let start_line = properties
+        .get_int("line_start")
+        .or_else(|| properties.get_int("start_line"))? as u32;
+    let end_line = properties
+        .get_int("line_end")
+        .or_else(|| properties.get_int("end_line"))? as u32;
+    // Columns usually not provided by parsers, default to full line
+    let start_col = properties
+        .get_int("col_start")
+        .or_else(|| properties.get_int("start_col"))
+        .unwrap_or(0) as u32;
+    let end_col = properties
+        .get_int("col_end")
+        .or_else(|| properties.get_int("end_col"))
+        .unwrap_or(10000) as u32; // Large default for end col
+
     Some(IndexRange {
-        start_line: properties.get_int("start_line")? as u32,
-        start_col: properties.get_int("start_col")? as u32,
-        end_line: properties.get_int("end_line")? as u32,
-        end_col: properties.get_int("end_col")? as u32,
+        start_line,
+        start_col,
+        end_line,
+        end_col,
     })
 }
 
@@ -264,8 +293,9 @@ fn extract_range(properties: &PropertyMap) -> Option<IndexRange> {
 mod tests {
     use super::*;
 
+    // IndexRange tests
     #[test]
-    fn test_range_contains() {
+    fn test_range_contains_inside() {
         let range = IndexRange {
             start_line: 10,
             start_col: 5,
@@ -275,13 +305,440 @@ mod tests {
 
         // Inside range
         assert!(range.contains(12, 0));
-        assert!(range.contains(10, 5));
-        assert!(range.contains(15, 10));
+        assert!(range.contains(12, 100));
+        assert!(range.contains(10, 5)); // Exact start
+        assert!(range.contains(15, 10)); // Exact end
+        assert!(range.contains(10, 100)); // Start line, after start col
+        assert!(range.contains(15, 5)); // End line, before end col
+    }
+
+    #[test]
+    fn test_range_contains_outside() {
+        let range = IndexRange {
+            start_line: 10,
+            start_col: 5,
+            end_line: 15,
+            end_col: 10,
+        };
 
         // Outside range
-        assert!(!range.contains(9, 0));
-        assert!(!range.contains(16, 0));
+        assert!(!range.contains(9, 0)); // Before start line
+        assert!(!range.contains(16, 0)); // After end line
         assert!(!range.contains(10, 4)); // Before start col on start line
         assert!(!range.contains(15, 11)); // After end col on end line
+    }
+
+    #[test]
+    fn test_range_contains_single_line() {
+        let range = IndexRange {
+            start_line: 5,
+            start_col: 10,
+            end_line: 5,
+            end_col: 20,
+        };
+
+        assert!(range.contains(5, 10));
+        assert!(range.contains(5, 15));
+        assert!(range.contains(5, 20));
+        assert!(!range.contains(5, 9));
+        assert!(!range.contains(5, 21));
+        assert!(!range.contains(4, 15));
+        assert!(!range.contains(6, 15));
+    }
+
+    #[test]
+    fn test_range_to_lsp_range() {
+        let range = IndexRange {
+            start_line: 10,
+            start_col: 5,
+            end_line: 15,
+            end_col: 20,
+        };
+
+        let lsp_range = range.to_lsp_range();
+        assert_eq!(lsp_range.start.line, 9); // 1-indexed to 0-indexed
+        assert_eq!(lsp_range.start.character, 5);
+        assert_eq!(lsp_range.end.line, 14);
+        assert_eq!(lsp_range.end.character, 20);
+    }
+
+    #[test]
+    fn test_range_to_lsp_range_saturating_sub() {
+        // Test that line 0 doesn't underflow
+        let range = IndexRange {
+            start_line: 0,
+            start_col: 0,
+            end_line: 1,
+            end_col: 10,
+        };
+
+        let lsp_range = range.to_lsp_range();
+        assert_eq!(lsp_range.start.line, 0); // saturating_sub prevents underflow
+        assert_eq!(lsp_range.end.line, 0);
+    }
+
+    // SymbolIndex tests
+    #[test]
+    fn test_symbol_index_new() {
+        let index = SymbolIndex::new();
+        let stats = index.stats();
+        assert_eq!(stats.total_symbols, 0);
+        assert_eq!(stats.total_files, 0);
+        assert_eq!(stats.unique_names, 0);
+    }
+
+    #[test]
+    fn test_symbol_index_default() {
+        let index = SymbolIndex::default();
+        let stats = index.stats();
+        assert_eq!(stats.total_symbols, 0);
+    }
+
+    #[test]
+    fn test_symbol_index_clear() {
+        let index = SymbolIndex::new();
+
+        // Add some data manually
+        index.by_name.insert("test".to_string(), vec![1, 2]);
+        index.by_file.insert(PathBuf::from("/test.rs"), vec![1, 2]);
+        index.by_type.insert("Function".to_string(), vec![1, 2]);
+
+        assert!(!index.by_name.is_empty());
+        assert!(!index.by_file.is_empty());
+        assert!(!index.by_type.is_empty());
+
+        index.clear();
+
+        assert!(index.by_name.is_empty());
+        assert!(index.by_file.is_empty());
+        assert!(index.by_type.is_empty());
+        assert!(index.by_position.is_empty());
+    }
+
+    #[test]
+    fn test_symbol_index_search_by_name() {
+        let index = SymbolIndex::new();
+
+        // Manually add entries
+        index.by_name.insert("process_data".to_string(), vec![1]);
+        index.by_name.insert("ProcessHandler".to_string(), vec![2]);
+        index.by_name.insert("validate".to_string(), vec![3]);
+        index
+            .by_name
+            .insert("process_request".to_string(), vec![4, 5]);
+
+        // Case-insensitive search
+        let results = index.search_by_name("process");
+        assert_eq!(results.len(), 4); // process_data, ProcessHandler, process_request (2)
+
+        let results = index.search_by_name("PROCESS");
+        assert_eq!(results.len(), 4);
+
+        let results = index.search_by_name("validate");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0], 3);
+
+        let results = index.search_by_name("nonexistent");
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_symbol_index_get_file_symbols() {
+        let index = SymbolIndex::new();
+
+        let path1 = PathBuf::from("/src/main.rs");
+        let path2 = PathBuf::from("/src/lib.rs");
+
+        index.by_file.insert(path1.clone(), vec![1, 2, 3]);
+        index.by_file.insert(path2.clone(), vec![4, 5]);
+
+        let symbols = index.get_file_symbols(&path1);
+        assert_eq!(symbols, vec![1, 2, 3]);
+
+        let symbols = index.get_file_symbols(&path2);
+        assert_eq!(symbols, vec![4, 5]);
+
+        let symbols = index.get_file_symbols(Path::new("/nonexistent"));
+        assert!(symbols.is_empty());
+    }
+
+    #[test]
+    fn test_symbol_index_get_by_type() {
+        let index = SymbolIndex::new();
+
+        index.by_type.insert("Function".to_string(), vec![1, 2, 3]);
+        index.by_type.insert("Class".to_string(), vec![4, 5]);
+        index.by_type.insert("Trait".to_string(), vec![6]);
+
+        let functions = index.get_by_type("Function");
+        assert_eq!(functions, vec![1, 2, 3]);
+
+        let classes = index.get_by_type("Class");
+        assert_eq!(classes, vec![4, 5]);
+
+        let traits = index.get_by_type("Trait");
+        assert_eq!(traits, vec![6]);
+
+        let modules = index.get_by_type("Module");
+        assert!(modules.is_empty());
+    }
+
+    #[test]
+    fn test_symbol_index_find_at_position_none() {
+        let index = SymbolIndex::new();
+
+        // No data
+        assert!(index
+            .find_at_position(Path::new("/test.rs"), 10, 5)
+            .is_none());
+    }
+
+    #[test]
+    fn test_symbol_index_find_at_position_single() {
+        let index = SymbolIndex::new();
+
+        let path = PathBuf::from("/test.rs");
+        let range = IndexRange {
+            start_line: 5,
+            start_col: 0,
+            end_line: 10,
+            end_col: 1,
+        };
+
+        index.by_position.insert(path.clone(), vec![(range, 42)]);
+
+        // Find within range
+        assert_eq!(index.find_at_position(&path, 7, 5), Some(42));
+
+        // Outside range
+        assert!(index.find_at_position(&path, 3, 0).is_none());
+        assert!(index.find_at_position(&path, 15, 0).is_none());
+    }
+
+    #[test]
+    fn test_symbol_index_find_at_position_nested() {
+        let index = SymbolIndex::new();
+
+        let path = PathBuf::from("/test.rs");
+
+        // Outer range (larger)
+        let outer = IndexRange {
+            start_line: 1,
+            start_col: 0,
+            end_line: 100,
+            end_col: 0,
+        };
+
+        // Inner range (smaller - should be preferred)
+        let inner = IndexRange {
+            start_line: 10,
+            start_col: 4,
+            end_line: 20,
+            end_col: 5,
+        };
+
+        index
+            .by_position
+            .insert(path.clone(), vec![(outer, 1), (inner, 2)]);
+
+        // Position inside inner should return inner (smallest containing range)
+        assert_eq!(index.find_at_position(&path, 15, 10), Some(2));
+
+        // Position outside inner but inside outer should return outer
+        assert_eq!(index.find_at_position(&path, 50, 0), Some(1));
+    }
+
+    #[test]
+    fn test_symbol_index_get_node_range() {
+        let index = SymbolIndex::new();
+
+        let path = PathBuf::from("/test.rs");
+        let range1 = IndexRange {
+            start_line: 5,
+            start_col: 0,
+            end_line: 10,
+            end_col: 1,
+        };
+        let range2 = IndexRange {
+            start_line: 15,
+            start_col: 0,
+            end_line: 20,
+            end_col: 1,
+        };
+
+        index
+            .by_position
+            .insert(path.clone(), vec![(range1.clone(), 1), (range2.clone(), 2)]);
+
+        // Find existing node range
+        let found = index.get_node_range(&path, 1);
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().start_line, 5);
+
+        let found = index.get_node_range(&path, 2);
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().start_line, 15);
+
+        // Non-existent node
+        assert!(index.get_node_range(&path, 999).is_none());
+
+        // Non-existent file
+        assert!(index.get_node_range(Path::new("/other.rs"), 1).is_none());
+    }
+
+    #[test]
+    fn test_symbol_index_stats() {
+        let index = SymbolIndex::new();
+
+        // Empty stats
+        let stats = index.stats();
+        assert_eq!(stats.total_symbols, 0);
+        assert_eq!(stats.total_files, 0);
+        assert_eq!(stats.unique_names, 0);
+
+        // Add some data
+        index.by_name.insert("foo".to_string(), vec![1, 2, 3]);
+        index.by_name.insert("bar".to_string(), vec![4]);
+        index.by_file.insert(PathBuf::from("/a.rs"), vec![1, 2]);
+        index.by_file.insert(PathBuf::from("/b.rs"), vec![3, 4]);
+
+        let stats = index.stats();
+        assert_eq!(stats.total_symbols, 4); // 3 + 1 symbols
+        assert_eq!(stats.total_files, 2);
+        assert_eq!(stats.unique_names, 2);
+    }
+
+    #[test]
+    fn test_symbol_index_remove_file() {
+        let index = SymbolIndex::new();
+
+        let path = PathBuf::from("/test.rs");
+
+        // Setup: add file with nodes
+        index.by_file.insert(path.clone(), vec![1, 2]);
+        index.by_name.insert("func1".to_string(), vec![1, 10]); // node 1 is from our file, 10 from another
+        index.by_name.insert("func2".to_string(), vec![2]);
+        index.by_type.insert("Function".to_string(), vec![1, 2, 10]);
+        index.by_position.insert(
+            path.clone(),
+            vec![(
+                IndexRange {
+                    start_line: 1,
+                    start_col: 0,
+                    end_line: 10,
+                    end_col: 0,
+                },
+                1,
+            )],
+        );
+
+        // Remove file
+        index.remove_file(&path);
+
+        // Verify file removed
+        assert!(index.by_file.get(&path).is_none());
+        assert!(index.by_position.get(&path).is_none());
+
+        // Verify node 1 and 2 removed from name index
+        let func1_nodes = index.by_name.get("func1");
+        assert!(func1_nodes.is_some());
+        assert_eq!(func1_nodes.unwrap().len(), 1); // Only node 10 remains
+
+        // func2 entry should be completely removed (was only node 2)
+        assert!(index.by_name.get("func2").is_none());
+
+        // Type index should only have node 10
+        let type_nodes = index.by_type.get("Function");
+        assert!(type_nodes.is_some());
+        assert_eq!(type_nodes.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_symbol_index_remove_nonexistent_file() {
+        let index = SymbolIndex::new();
+
+        // Should not panic when removing non-existent file
+        index.remove_file(Path::new("/nonexistent.rs"));
+
+        // Index should still be empty
+        assert!(index.by_file.is_empty());
+    }
+
+    // IndexRange equality tests
+    #[test]
+    fn test_index_range_equality() {
+        let range1 = IndexRange {
+            start_line: 10,
+            start_col: 5,
+            end_line: 20,
+            end_col: 15,
+        };
+
+        let range2 = IndexRange {
+            start_line: 10,
+            start_col: 5,
+            end_line: 20,
+            end_col: 15,
+        };
+
+        let range3 = IndexRange {
+            start_line: 10,
+            start_col: 5,
+            end_line: 20,
+            end_col: 16, // Different
+        };
+
+        assert_eq!(range1, range2);
+        assert_ne!(range1, range3);
+    }
+
+    #[test]
+    fn test_index_range_clone() {
+        let range = IndexRange {
+            start_line: 1,
+            start_col: 2,
+            end_line: 3,
+            end_col: 4,
+        };
+
+        let cloned = range.clone();
+        assert_eq!(range, cloned);
+    }
+
+    #[test]
+    fn test_index_range_debug() {
+        let range = IndexRange {
+            start_line: 1,
+            start_col: 2,
+            end_line: 3,
+            end_col: 4,
+        };
+
+        let debug_str = format!("{:?}", range);
+        assert!(debug_str.contains("IndexRange"));
+        assert!(debug_str.contains("start_line: 1"));
+    }
+
+    #[test]
+    fn test_find_file_for_node() {
+        let index = SymbolIndex::new();
+
+        let path1 = PathBuf::from("/src/main.rs");
+        let path2 = PathBuf::from("/src/lib.rs");
+
+        index.by_file.insert(path1.clone(), vec![1, 2, 3]);
+        index.by_file.insert(path2.clone(), vec![4, 5]);
+
+        // Find node in first file
+        assert_eq!(index.find_file_for_node(1), Some(path1.clone()));
+        assert_eq!(index.find_file_for_node(2), Some(path1.clone()));
+        assert_eq!(index.find_file_for_node(3), Some(path1.clone()));
+
+        // Find node in second file
+        assert_eq!(index.find_file_for_node(4), Some(path2.clone()));
+        assert_eq!(index.find_file_for_node(5), Some(path2.clone()));
+
+        // Non-existent node
+        assert!(index.find_file_for_node(99).is_none());
     }
 }

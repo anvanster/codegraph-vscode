@@ -197,8 +197,6 @@ dependencies = [
 [[package]]
 name = "codegraph"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1cd36812bf0203056260be348dcb39c154d56dbd6c2ebda061c8369f974c2c3"
 dependencies = [
  "log",
  "rocksdb",
@@ -211,8 +209,6 @@ dependencies = [
 [[package]]
 name = "codegraph-go"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5718c2203af479f7af08bc8e8d338cf8a863b29312552e20a6fc3a7e1ad0c9d2"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -249,9 +245,7 @@ dependencies = [
 
 [[package]]
 name = "codegraph-parser-api"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48f6ded58921fbbaae7112ebc4ffdb6b30b490587a4715e6d2e0eb8e97f1f23d"
+version = "0.1.1"
 dependencies = [
  "codegraph",
  "serde",
@@ -261,8 +255,6 @@ dependencies = [
 [[package]]
 name = "codegraph-python"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35df1ed7ec0eb27e7fd984d8ba4b590f804fa3a79316ffb6e092625582831d87"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -279,8 +271,6 @@ dependencies = [
 [[package]]
 name = "codegraph-rust"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "660518de4bec4cd8403468f96391ac8f9535b6a283be9cf58633c9f5842fb606"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -294,9 +284,7 @@ dependencies = [
 
 [[package]]
 name = "codegraph-typescript"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2806e7641550c83b4cec07c6b570bbe9464ab28503750d2fa2746c979f713cea"
+version = "0.2.1"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -651,9 +639,9 @@ checksum = "7aedcccd01fc5fe81e6b489c15b247b8b0690feb23304303a9e560f37efc560a"
 
 [[package]]
 name = "icu_properties"
-version = "2.1.1"
+version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e93fcd3157766c0c8da2f8cff6ce651a31f0810eaa1c51ec363ef790bbb5fb99"
+checksum = "020bfc02fe870ec3a66d93e677ccca0562506e5872c650f893269e08615d74ec"
 dependencies = [
  "icu_collections",
  "icu_locale_core",
@@ -665,9 +653,9 @@ dependencies = [
 
 [[package]]
 name = "icu_properties_data"
-version = "2.1.1"
+version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02845b3647bb045f1100ecd6480ff52f34c35f82d9880e029d329c21d1054899"
+checksum = "616c294cf8d725c6afcd8f55abc17c56464ef6211f9ed59cccffe534129c77af"
 
 [[package]]
 name = "icu_provider"
@@ -1040,9 +1028,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69d83b0086dc8ecf3ce9ae2874b2d1290252e2a30720bea58a5c6639b0092873"
+checksum = "a69bcab0ad47271a0234d9422b131806bf3968021e5dc9328caf2d4cd58557fc"
 dependencies = [
  "libc",
  "wasi",
@@ -1680,7 +1668,7 @@ checksum = "ff360e02eab121e0bc37a2d3b4d4dc622e6eda3a8e5253d5435ecf5bd4c68408"
 dependencies = [
  "bytes",
  "libc",
- "mio 1.1.0",
+ "mio 1.1.1",
  "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",

@@ -1,0 +1,29 @@
+{
+  "extension": "./out/extension.js",
+  "suites": {
+    "lsp": {
+      "name": "LSP Integration Tests",
+      "pattern": "tests/lsp/**/*.test.ts",
+      "mode": "lsp",
+      "timeout": 30000,
+      "server": {
+        "command": "./target/release/codegraph-lsp",
+        "args": []
+      },
+      "workspace": "."
+    },
+    "unit": {
+      "name": "Unit Tests",
+      "pattern": "src/**/*.test.ts",
+      "mode": "mocked",
+      "timeout": 5000
+    }
+  },
+  "coverage": {
+    "enabled": false
+  },
+  "shim": {
+    "level": "full",
+    "behavior": "permissive"
+  }
+}

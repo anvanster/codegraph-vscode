@@ -127,11 +127,48 @@ export class GraphVisualizationPanel {
                     case 'refresh':
                         await this.refresh(message.params);
                         break;
+                    case 'exportSvg':
+                        await this.exportSvg(message.svgContent);
+                        break;
+                    case 'exportJson':
+                        await this.exportJson(message.data);
+                        break;
                 }
             },
             null,
             this.disposables
         );
+    }
+
+    private async exportSvg(svgContent: string): Promise<void> {
+        const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file('codegraph-export.svg'),
+            filters: {
+                'SVG Files': ['svg'],
+            },
+        });
+
+        if (uri) {
+            const encoder = new TextEncoder();
+            await vscode.workspace.fs.writeFile(uri, encoder.encode(svgContent));
+            vscode.window.showInformationMessage(`Graph exported to ${uri.fsPath}`);
+        }
+    }
+
+    private async exportJson(data: GraphData): Promise<void> {
+        const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file('codegraph-export.json'),
+            filters: {
+                'JSON Files': ['json'],
+            },
+        });
+
+        if (uri) {
+            const encoder = new TextEncoder();
+            const jsonContent = JSON.stringify(data, null, 2);
+            await vscode.workspace.fs.writeFile(uri, encoder.encode(jsonContent));
+            vscode.window.showInformationMessage(`Graph data exported to ${uri.fsPath}`);
+        }
     }
 
     private async handleNodeClick(nodeId: string): Promise<void> {
@@ -431,6 +468,9 @@ export class GraphVisualizationPanel {
         <button id="zoomIn">Zoom In</button>
         <button id="zoomOut">Zoom Out</button>
         <button id="resetView">Reset</button>
+        <span style="margin-left: 16px; border-left: 1px solid var(--vscode-foreground); padding-left: 16px;">Export:</span>
+        <button id="exportSvg">SVG</button>
+        <button id="exportJson">JSON</button>
     </div>
     <div id="root">
         <div id="loading">Loading graph...</div>
@@ -878,6 +918,48 @@ export class GraphVisualizationPanel {
         document.getElementById('resetView').addEventListener('click', () => {
             transform = { x: 0, y: 0, k: 1 };
             updateTransform();
+        });
+
+        document.getElementById('exportSvg').addEventListener('click', () => {
+            if (!svg) {
+                return;
+            }
+            // Clone SVG to add proper styling for export
+            const svgClone = svg.cloneNode(true);
+            svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+            // Add inline styles for export
+            const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+            style.textContent = \`
+                .node circle { stroke: #fff; stroke-width: 2px; }
+                .node text { fill: #ccc; font-size: 12px; font-family: sans-serif; }
+                .link { stroke-opacity: 0.6; stroke-width: 2px; }
+                text { fill: #ccc; }
+            \`;
+            svgClone.insertBefore(style, svgClone.firstChild);
+
+            // Add background
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('width', '100%');
+            rect.setAttribute('height', '100%');
+            rect.setAttribute('fill', '#1e1e1e');
+            svgClone.insertBefore(rect, svgClone.firstChild);
+
+            const svgContent = new XMLSerializer().serializeToString(svgClone);
+            vscode.postMessage({
+                command: 'exportSvg',
+                svgContent: '<?xml version="1.0" encoding="UTF-8"?>\\n' + svgContent
+            });
+        });
+
+        document.getElementById('exportJson').addEventListener('click', () => {
+            if (!currentData) {
+                return;
+            }
+            vscode.postMessage({
+                command: 'exportJson',
+                data: currentData
+            });
         });
     </script>
 </body>

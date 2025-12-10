@@ -156,6 +156,37 @@
                 }
             }
         },
+        "chatParticipants": [
+            {
+                "id": "codegraph",
+                "fullName": "CodeGraph",
+                "name": "codegraph",
+                "description": "Provides code intelligence context from CodeGraph - dependency graphs, call graphs, impact analysis, and related code",
+                "isSticky": false,
+                "commands": [
+                    {
+                        "name": "dependencies",
+                        "description": "Show dependency graph for the current file"
+                    },
+                    {
+                        "name": "callgraph",
+                        "description": "Show call graph for the function at cursor"
+                    },
+                    {
+                        "name": "impact",
+                        "description": "Analyze impact of changes to the current symbol"
+                    },
+                    {
+                        "name": "tests",
+                        "description": "Find tests related to the current code"
+                    },
+                    {
+                        "name": "context",
+                        "description": "Get comprehensive code context for AI analysis"
+                    }
+                ]
+            }
+        ],
         "languageModelTools": [
             {
                 "name": "codegraph_get_dependency_graph",

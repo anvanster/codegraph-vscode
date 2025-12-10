@@ -583,7 +583,17 @@ impl CodeGraphBackend {
         node_id: NodeId,
     ) -> Option<ArchitectureInfo> {
         let node = graph.get_node(node_id).ok()?;
-        let path = node.properties.get_string("path")?;
+
+        // Try to get path from node properties, fallback to symbol index
+        let path_str = match node.properties.get_string("path") {
+            Some(p) => p.to_string(),
+            None => {
+                self.symbol_index.find_file_for_node(node_id)?
+                    .to_string_lossy()
+                    .to_string()
+            }
+        };
+        let path = &path_str;
 
         // Extract module name from path
         let module = std::path::Path::new(path)

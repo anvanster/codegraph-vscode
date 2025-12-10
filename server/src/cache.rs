@@ -237,3 +237,369 @@ impl Default for QueryCache {
         Self::new(1000)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tower_lsp::lsp_types::Url;
+
+    fn make_location(line: u32) -> Location {
+        Location {
+            uri: Url::parse("file:///test.rs").unwrap(),
+            range: Range {
+                start: tower_lsp::lsp_types::Position { line, character: 0 },
+                end: tower_lsp::lsp_types::Position { line, character: 10 },
+            },
+        }
+    }
+
+    #[test]
+    fn test_cache_new_with_valid_capacity() {
+        let cache = QueryCache::new(50);
+        let stats = cache.stats();
+        assert_eq!(stats.definitions_count, 0);
+        assert_eq!(stats.references_count, 0);
+        assert_eq!(stats.call_hierarchies_count, 0);
+    }
+
+    #[test]
+    fn test_cache_new_with_zero_capacity_uses_default() {
+        let cache = QueryCache::new(0);
+        // Should use default capacity of 100
+        let stats = cache.stats();
+        assert_eq!(stats.definitions_count, 0);
+    }
+
+    #[test]
+    fn test_cache_default() {
+        let cache = QueryCache::default();
+        let stats = cache.stats();
+        assert_eq!(stats.definitions_count, 0);
+    }
+
+    #[test]
+    fn test_definition_cache_set_and_get() {
+        let cache = QueryCache::new(100);
+        let path = PathBuf::from("/test/file.rs");
+        let node_id: NodeId = 42;
+
+        cache.set_definition(path.clone(), 10, 5, node_id);
+        let result = cache.get_definition(&path, 10, 5);
+
+        assert_eq!(result, Some(node_id));
+    }
+
+    #[test]
+    fn test_definition_cache_miss() {
+        let cache = QueryCache::new(100);
+        let path = PathBuf::from("/test/file.rs");
+
+        let result = cache.get_definition(&path, 10, 5);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_definition_cache_different_positions() {
+        let cache = QueryCache::new(100);
+        let path = PathBuf::from("/test/file.rs");
+        let node_id1: NodeId = 1;
+        let node_id2: NodeId = 2;
+
+        cache.set_definition(path.clone(), 10, 5, node_id1);
+        cache.set_definition(path.clone(), 20, 10, node_id2);
+
+        assert_eq!(cache.get_definition(&path, 10, 5), Some(node_id1));
+        assert_eq!(cache.get_definition(&path, 20, 10), Some(node_id2));
+        assert_eq!(cache.get_definition(&path, 10, 6), None);
+    }
+
+    #[test]
+    fn test_references_cache_set_and_get() {
+        let cache = QueryCache::new(100);
+        let node_id: NodeId = 42;
+        let locations = vec![make_location(1), make_location(5), make_location(10)];
+
+        cache.set_references(node_id, locations.clone());
+        let result = cache.get_references(node_id);
+
+        assert!(result.is_some());
+        let result = result.unwrap();
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].range.start.line, 1);
+        assert_eq!(result[1].range.start.line, 5);
+    }
+
+    #[test]
+    fn test_references_cache_miss() {
+        let cache = QueryCache::new(100);
+        let node_id: NodeId = 42;
+
+        let result = cache.get_references(node_id);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_call_hierarchy_cache_set_and_get() {
+        let cache = QueryCache::new(100);
+        let node_id: NodeId = 42;
+
+        let incoming: Vec<(NodeId, Vec<Range>)> = vec![(1, vec![])];
+        let outgoing: Vec<(NodeId, Vec<Range>)> = vec![(2, vec![]), (3, vec![])];
+
+        cache.set_call_hierarchy(
+            node_id,
+            CallHierarchyCache {
+                incoming: incoming.clone(),
+                outgoing: outgoing.clone(),
+            },
+        );
+
+        let result = cache.get_call_hierarchy(node_id);
+        assert!(result.is_some());
+        let result = result.unwrap();
+        assert_eq!(result.incoming.len(), 1);
+        assert_eq!(result.outgoing.len(), 2);
+    }
+
+    #[test]
+    fn test_call_hierarchy_cache_miss() {
+        let cache = QueryCache::new(100);
+        let node_id: NodeId = 42;
+
+        let result = cache.get_call_hierarchy(node_id);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_dependency_graph_cache_set_and_get() {
+        let cache = QueryCache::new(100);
+        let path = PathBuf::from("/test/file.rs");
+        let depth = 3;
+
+        let graph_cache = DependencyGraphCache {
+            nodes: vec![1, 2],
+            edges: vec![(1, 2, "imports".to_string())],
+        };
+
+        cache.set_dependency_graph(path.clone(), depth, graph_cache);
+
+        let result = cache.get_dependency_graph(&path, depth);
+        assert!(result.is_some());
+        let result = result.unwrap();
+        assert_eq!(result.nodes.len(), 2);
+        assert_eq!(result.edges.len(), 1);
+    }
+
+    #[test]
+    fn test_dependency_graph_cache_different_depths() {
+        let cache = QueryCache::new(100);
+        let path = PathBuf::from("/test/file.rs");
+
+        let graph1 = DependencyGraphCache {
+            nodes: vec![1],
+            edges: vec![],
+        };
+        let graph2 = DependencyGraphCache {
+            nodes: vec![1, 2, 3],
+            edges: vec![],
+        };
+
+        cache.set_dependency_graph(path.clone(), 1, graph1);
+        cache.set_dependency_graph(path.clone(), 3, graph2);
+
+        let result1 = cache.get_dependency_graph(&path, 1);
+        let result3 = cache.get_dependency_graph(&path, 3);
+
+        assert!(result1.is_some());
+        assert!(result3.is_some());
+        assert_eq!(result1.unwrap().nodes.len(), 1);
+        assert_eq!(result3.unwrap().nodes.len(), 3);
+    }
+
+    #[test]
+    fn test_ai_context_cache_set_and_get() {
+        let cache = QueryCache::new(100);
+        let node_id: NodeId = 42;
+        let context_type = "function";
+
+        let ai_cache = AIContextCache {
+            primary_code: "fn test() {}".to_string(),
+            related_symbols: vec![
+                (1, "helper".to_string(), 0.9),
+                (2, "util".to_string(), 0.7),
+            ],
+        };
+
+        cache.set_ai_context(node_id, context_type.to_string(), ai_cache);
+
+        let result = cache.get_ai_context(node_id, context_type);
+        assert!(result.is_some());
+        let result = result.unwrap();
+        assert_eq!(result.primary_code, "fn test() {}");
+        assert_eq!(result.related_symbols.len(), 2);
+    }
+
+    #[test]
+    fn test_ai_context_cache_different_types() {
+        let cache = QueryCache::new(100);
+        let node_id: NodeId = 42;
+
+        let cache1 = AIContextCache {
+            primary_code: "fn test() {}".to_string(),
+            related_symbols: vec![],
+        };
+        let cache2 = AIContextCache {
+            primary_code: "struct Test {}".to_string(),
+            related_symbols: vec![],
+        };
+
+        cache.set_ai_context(node_id, "function".to_string(), cache1);
+        cache.set_ai_context(node_id, "struct".to_string(), cache2);
+
+        let result1 = cache.get_ai_context(node_id, "function");
+        let result2 = cache.get_ai_context(node_id, "struct");
+
+        assert_eq!(result1.unwrap().primary_code, "fn test() {}");
+        assert_eq!(result2.unwrap().primary_code, "struct Test {}");
+    }
+
+    #[test]
+    fn test_invalidate_file_removes_definitions() {
+        let cache = QueryCache::new(100);
+        let path1 = PathBuf::from("/test/file1.rs");
+        let path2 = PathBuf::from("/test/file2.rs");
+
+        cache.set_definition(path1.clone(), 10, 5, 1);
+        cache.set_definition(path2.clone(), 20, 10, 2);
+
+        cache.invalidate_file(&path1);
+
+        assert!(cache.get_definition(&path1, 10, 5).is_none());
+        assert!(cache.get_definition(&path2, 20, 10).is_some());
+    }
+
+    #[test]
+    fn test_invalidate_file_clears_references() {
+        let cache = QueryCache::new(100);
+        let path = PathBuf::from("/test/file.rs");
+        let node_id: NodeId = 42;
+
+        cache.set_references(node_id, vec![make_location(1)]);
+        cache.invalidate_file(&path);
+
+        // References are cleared entirely when a file is invalidated
+        assert!(cache.get_references(node_id).is_none());
+    }
+
+    #[test]
+    fn test_invalidate_all() {
+        let cache = QueryCache::new(100);
+        let path = PathBuf::from("/test/file.rs");
+        let node_id: NodeId = 42;
+
+        cache.set_definition(path.clone(), 10, 5, node_id);
+        cache.set_references(node_id, vec![make_location(1)]);
+        cache.set_call_hierarchy(
+            node_id,
+            CallHierarchyCache {
+                incoming: vec![],
+                outgoing: vec![],
+            },
+        );
+        cache.set_dependency_graph(
+            path.clone(),
+            3,
+            DependencyGraphCache {
+                nodes: vec![],
+                edges: vec![],
+            },
+        );
+        cache.set_ai_context(
+            node_id,
+            "test".to_string(),
+            AIContextCache {
+                primary_code: "".to_string(),
+                related_symbols: vec![],
+            },
+        );
+
+        let stats_before = cache.stats();
+        assert!(stats_before.definitions_count > 0);
+
+        cache.invalidate_all();
+
+        let stats_after = cache.stats();
+        assert_eq!(stats_after.definitions_count, 0);
+        assert_eq!(stats_after.references_count, 0);
+        assert_eq!(stats_after.call_hierarchies_count, 0);
+        assert_eq!(stats_after.dependency_graphs_count, 0);
+        assert_eq!(stats_after.ai_contexts_count, 0);
+    }
+
+    #[test]
+    fn test_stats_reflects_cache_contents() {
+        let cache = QueryCache::new(100);
+        let path = PathBuf::from("/test/file.rs");
+        let node_id1: NodeId = 1;
+        let node_id2: NodeId = 2;
+
+        cache.set_definition(path.clone(), 10, 5, node_id1);
+        cache.set_definition(path.clone(), 20, 10, node_id2);
+        cache.set_references(node_id1, vec![make_location(1)]);
+
+        let stats = cache.stats();
+        assert_eq!(stats.definitions_count, 2);
+        assert_eq!(stats.references_count, 1);
+    }
+
+    #[test]
+    fn test_lru_eviction_for_call_hierarchies() {
+        // Create cache with small capacity
+        let cache = QueryCache::new(2);
+
+        // Add 3 items to trigger LRU eviction
+        for i in 0..3u64 {
+            cache.set_call_hierarchy(
+                i,
+                CallHierarchyCache {
+                    incoming: vec![],
+                    outgoing: vec![],
+                },
+            );
+        }
+
+        // The least recently used item (node 0) should be evicted
+        assert!(cache.get_call_hierarchy(0).is_none());
+        assert!(cache.get_call_hierarchy(1).is_some());
+        assert!(cache.get_call_hierarchy(2).is_some());
+    }
+
+    #[test]
+    fn test_concurrent_access_definitions() {
+        use std::sync::Arc;
+        use std::thread;
+
+        let cache = Arc::new(QueryCache::new(1000));
+        let mut handles = vec![];
+
+        // Spawn multiple threads writing to the cache
+        for i in 0..10u64 {
+            let cache = Arc::clone(&cache);
+            let handle = thread::spawn(move || {
+                let path = PathBuf::from(format!("/test/file{}.rs", i));
+                for j in 0..100u32 {
+                    cache.set_definition(path.clone(), j, 0, (i * 100 + j as u64) as NodeId);
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Verify we can read all entries
+        let stats = cache.stats();
+        assert_eq!(stats.definitions_count, 1000);
+    }
+}
