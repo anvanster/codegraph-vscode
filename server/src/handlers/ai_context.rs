@@ -118,6 +118,7 @@ impl TokenBudget {
         self.used < self.total
     }
 
+    #[allow(dead_code)]
     fn remaining(&self) -> usize {
         self.total.saturating_sub(self.used)
     }
@@ -199,6 +200,9 @@ impl CodeGraphBackend {
         // Get dependencies
         let dependencies = self.get_dependencies(&graph, node_id);
 
+        // Get usage examples
+        let usage_examples = self.get_usage_examples(&graph, node_id, &name, &mut budget).await;
+
         // Get architecture info
         let architecture = self.get_architecture_info(&graph, node_id);
 
@@ -208,7 +212,7 @@ impl CodeGraphBackend {
             primary_context,
             related_symbols,
             dependencies,
-            usage_examples: None, // Could be implemented
+            usage_examples,
             architecture,
             metadata: ContextMetadata {
                 total_tokens: budget.used,
@@ -257,7 +261,7 @@ impl CodeGraphBackend {
 
         // Priority 2: Direct callers (who uses this)
         let incoming = self.get_connected_edges(graph, node_id, Direction::Incoming);
-        for (source, _, edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Calls).take(3) {
+        for (source, _, _edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Calls).take(3) {
             if !budget.has_budget() {
                 break;
             }
@@ -270,7 +274,7 @@ impl CodeGraphBackend {
         }
 
         // Priority 3: Parent type (for methods)
-        for (source, _, edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Extends) {
+        for (source, _, _edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Extends) {
             if !budget.has_budget() {
                 break;
             }
@@ -296,7 +300,7 @@ impl CodeGraphBackend {
 
         // Priority 1: Tests for this symbol
         let incoming = self.get_connected_edges(graph, node_id, Direction::Incoming);
-        for (source, _, edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Calls).take(5) {
+        for (source, _, _edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Calls).take(5) {
             if !budget.has_budget() {
                 break;
             }
@@ -312,7 +316,7 @@ impl CodeGraphBackend {
         }
 
         // Priority 2: All direct callers
-        for (source, _, edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Calls).take(5) {
+        for (source, _, _edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Calls).take(5) {
             if !budget.has_budget() {
                 break;
             }
@@ -399,7 +403,7 @@ impl CodeGraphBackend {
 
         // Find existing tests that might be similar
         let incoming = self.get_connected_edges(graph, node_id, Direction::Incoming);
-        for (source, _, edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Calls).take(3) {
+        for (source, _, _edge_type) in incoming.iter().filter(|(_, _, t)| *t == EdgeType::Calls).take(3) {
             if !budget.has_budget() {
                 break;
             }
@@ -460,13 +464,105 @@ impl CodeGraphBackend {
         })
     }
 
+    /// Get usage examples for a symbol by finding other code that uses it.
+    async fn get_usage_examples(
+        &self,
+        graph: &codegraph::CodeGraph,
+        node_id: NodeId,
+        target_name: &str,
+        budget: &mut TokenBudget,
+    ) -> Option<Vec<UsageExample>> {
+        let mut examples = Vec::new();
+
+        // Find nodes that call or reference this symbol
+        let incoming = self.get_connected_edges(graph, node_id, Direction::Incoming);
+
+        // Filter for actual usage (Calls edge type) and exclude tests for main examples
+        let usages: Vec<_> = incoming
+            .iter()
+            .filter(|(_, _, edge_type)| *edge_type == EdgeType::Calls || *edge_type == EdgeType::References)
+            .collect();
+
+        // Limit to top 3 most relevant examples
+        for (source, _, _edge_type) in usages.iter().take(3) {
+            if !budget.has_budget() {
+                break;
+            }
+
+            if let Ok(usage_node) = graph.get_node(*source) {
+                // Skip if this is a test (tests are covered elsewhere)
+                let usage_name = usage_node.properties.get_string("name").unwrap_or("");
+                if usage_name.starts_with("test_") || usage_name.ends_with("_test") {
+                    continue;
+                }
+
+                // Get the source code of the usage
+                if let Some(code) = self.get_node_source_code(*source).await.ok().flatten() {
+                    let tokens = estimate_tokens(&code);
+                    if !budget.consume(tokens) {
+                        break;
+                    }
+
+                    if let Ok(location) = self.node_to_location_info(graph, *source) {
+                        // Generate description based on usage context
+                        let description = Self::generate_usage_description(
+                            usage_name,
+                            target_name,
+                            &code,
+                        );
+
+                        examples.push(UsageExample {
+                            code,
+                            location,
+                            description: Some(description),
+                        });
+                    }
+                }
+            }
+        }
+
+        if examples.is_empty() {
+            None
+        } else {
+            Some(examples)
+        }
+    }
+
+    /// Generate a helpful description for a usage example.
+    fn generate_usage_description(caller_name: &str, target_name: &str, code: &str) -> String {
+        // Analyze the code to provide context about the usage
+        let is_async = code.contains("await") || code.contains("async");
+        let is_error_handling = code.contains("try") || code.contains("catch") || code.contains("?");
+        let is_conditional = code.contains("if") || code.contains("match") || code.contains("switch");
+
+        let mut parts = Vec::new();
+
+        if !caller_name.is_empty() {
+            parts.push(format!("`{}` calls `{}`", caller_name, target_name));
+        } else {
+            parts.push(format!("Usage of `{}`", target_name));
+        }
+
+        if is_async {
+            parts.push("(async)".to_string());
+        }
+        if is_error_handling {
+            parts.push("with error handling".to_string());
+        }
+        if is_conditional {
+            parts.push("conditionally".to_string());
+        }
+
+        parts.join(" ")
+    }
+
     /// Get dependencies for a node.
     fn get_dependencies(&self, graph: &codegraph::CodeGraph, node_id: NodeId) -> Vec<DependencyInfo> {
         let mut deps = Vec::new();
 
         let outgoing = self.get_connected_edges(graph, node_id, Direction::Outgoing);
 
-        for (_, target, edge_type) in outgoing.iter().filter(|(_, _, t)| *t == EdgeType::Imports).take(10) {
+        for (_, target, _edge_type) in outgoing.iter().filter(|(_, _, t)| *t == EdgeType::Imports).take(10) {
             if let Ok(dep_node) = graph.get_node(*target) {
                 let name = dep_node.properties.get_string("name").unwrap_or("").to_string();
                 deps.push(DependencyInfo {
@@ -496,6 +592,9 @@ impl CodeGraphBackend {
             .unwrap_or("unknown")
             .to_string();
 
+        // Detect architectural layer from path
+        let layer = Self::detect_layer(path);
+
         // Get neighbor modules
         let mut neighbors = HashSet::new();
 
@@ -521,8 +620,200 @@ impl CodeGraphBackend {
 
         Some(ArchitectureInfo {
             module,
-            layer: None,
+            layer,
             neighbors: neighbors.into_iter().collect(),
         })
+    }
+
+    /// Detect architectural layer from file path using common conventions.
+    fn detect_layer(path: &str) -> Option<String> {
+        let path_lower = path.to_lowercase();
+
+        // Common layer patterns (ordered by specificity)
+        let layer_patterns: &[(&[&str], &str)] = &[
+            // Presentation/UI layer
+            (&["controllers", "controller", "routes", "router", "endpoints", "api/"], "controller"),
+            (&["views", "view", "templates", "pages", "components", "ui/"], "presentation"),
+            (&["handlers", "handler"], "handler"),
+
+            // Application/Service layer
+            (&["services", "service", "usecases", "use_cases", "application/"], "service"),
+            (&["commands", "command"], "command"),
+            (&["queries", "query"], "query"),
+
+            // Domain layer
+            (&["models", "model", "entities", "entity", "domain/"], "domain"),
+            (&["aggregates", "aggregate"], "aggregate"),
+            (&["value_objects", "valueobjects"], "value_object"),
+
+            // Infrastructure layer
+            (&["repositories", "repository", "repos"], "repository"),
+            (&["database", "db/", "persistence"], "persistence"),
+            (&["adapters", "adapter", "infrastructure/"], "infrastructure"),
+            (&["clients", "client"], "client"),
+            (&["providers", "provider"], "provider"),
+
+            // Cross-cutting concerns
+            (&["middleware", "middlewares"], "middleware"),
+            (&["utils", "util", "helpers", "helper", "lib/"], "utility"),
+            (&["config", "configuration", "settings"], "configuration"),
+            (&["types", "interfaces", "contracts"], "contract"),
+
+            // Testing layer
+            (&["tests", "test", "__tests__", "spec", "specs"], "test"),
+            (&["fixtures", "mocks", "stubs"], "test_support"),
+        ];
+
+        for (patterns, layer) in layer_patterns {
+            for pattern in *patterns {
+                if path_lower.contains(pattern) {
+                    return Some(layer.to_string());
+                }
+            }
+        }
+
+        // Fallback: try to infer from file name patterns
+        let file_name = std::path::Path::new(path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        if file_name.ends_with("controller") || file_name.ends_with("_controller") {
+            return Some("controller".to_string());
+        }
+        if file_name.ends_with("service") || file_name.ends_with("_service") {
+            return Some("service".to_string());
+        }
+        if file_name.ends_with("repository") || file_name.ends_with("_repository") || file_name.ends_with("repo") {
+            return Some("repository".to_string());
+        }
+        if file_name.ends_with("model") || file_name.ends_with("_model") || file_name.ends_with("entity") {
+            return Some("domain".to_string());
+        }
+        if file_name.ends_with("handler") || file_name.ends_with("_handler") {
+            return Some("handler".to_string());
+        }
+        if file_name.ends_with("middleware") {
+            return Some("middleware".to_string());
+        }
+        if file_name.starts_with("test_") || file_name.ends_with("_test") || file_name.ends_with(".test") || file_name.ends_with(".spec") {
+            return Some("test".to_string());
+        }
+
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_layer_controllers() {
+        assert_eq!(CodeGraphBackend::detect_layer("/src/controllers/user.ts"), Some("controller".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/src/api/users.ts"), Some("controller".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/app/routes/index.ts"), Some("controller".to_string()));
+    }
+
+    #[test]
+    fn test_detect_layer_services() {
+        assert_eq!(CodeGraphBackend::detect_layer("/src/services/auth.ts"), Some("service".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/src/usecases/login.ts"), Some("service".to_string()));
+    }
+
+    #[test]
+    fn test_detect_layer_domain() {
+        assert_eq!(CodeGraphBackend::detect_layer("/src/models/user.ts"), Some("domain".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/src/entities/order.ts"), Some("domain".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/src/domain/product.ts"), Some("domain".to_string()));
+    }
+
+    #[test]
+    fn test_detect_layer_repository() {
+        assert_eq!(CodeGraphBackend::detect_layer("/src/repositories/user_repo.ts"), Some("repository".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/src/repos/order.ts"), Some("repository".to_string()));
+    }
+
+    #[test]
+    fn test_detect_layer_infrastructure() {
+        assert_eq!(CodeGraphBackend::detect_layer("/src/database/connection.ts"), Some("persistence".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/src/adapters/redis.ts"), Some("infrastructure".to_string()));
+    }
+
+    #[test]
+    fn test_detect_layer_utility() {
+        assert_eq!(CodeGraphBackend::detect_layer("/src/utils/helpers.ts"), Some("utility".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/lib/format.ts"), Some("utility".to_string()));
+    }
+
+    #[test]
+    fn test_detect_layer_tests() {
+        assert_eq!(CodeGraphBackend::detect_layer("/src/__tests__/user.test.ts"), Some("test".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/tests/integration/api.ts"), Some("test".to_string()));
+    }
+
+    #[test]
+    fn test_detect_layer_by_filename() {
+        assert_eq!(CodeGraphBackend::detect_layer("/src/user_controller.ts"), Some("controller".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/src/auth_service.ts"), Some("service".to_string()));
+        assert_eq!(CodeGraphBackend::detect_layer("/src/user_repository.ts"), Some("repository".to_string()));
+    }
+
+    #[test]
+    fn test_detect_layer_unknown() {
+        assert_eq!(CodeGraphBackend::detect_layer("/src/main.ts"), None);
+        assert_eq!(CodeGraphBackend::detect_layer("/app.ts"), None);
+    }
+
+    #[test]
+    fn test_generate_usage_description_basic() {
+        let desc = CodeGraphBackend::generate_usage_description(
+            "process_order",
+            "validate_data",
+            "validate_data(input)"
+        );
+        assert!(desc.contains("`process_order`"));
+        assert!(desc.contains("`validate_data`"));
+    }
+
+    #[test]
+    fn test_generate_usage_description_async() {
+        let desc = CodeGraphBackend::generate_usage_description(
+            "handler",
+            "fetch_user",
+            "await fetch_user(id)"
+        );
+        assert!(desc.contains("(async)"));
+    }
+
+    #[test]
+    fn test_generate_usage_description_error_handling() {
+        let desc = CodeGraphBackend::generate_usage_description(
+            "process",
+            "parse_config",
+            "try { parse_config() } catch(e) { }"
+        );
+        assert!(desc.contains("error handling"));
+    }
+
+    #[test]
+    fn test_generate_usage_description_conditional() {
+        let desc = CodeGraphBackend::generate_usage_description(
+            "run",
+            "check",
+            "if (check(x)) { do_thing() }"
+        );
+        assert!(desc.contains("conditionally"));
+    }
+
+    #[test]
+    fn test_generate_usage_description_empty_caller() {
+        let desc = CodeGraphBackend::generate_usage_description(
+            "",
+            "my_function",
+            "my_function()"
+        );
+        assert!(desc.contains("Usage of `my_function`"));
     }
 }

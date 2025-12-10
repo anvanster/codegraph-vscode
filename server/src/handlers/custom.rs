@@ -1,7 +1,7 @@
 //! Custom LSP request handlers for graph-based features.
 
 use crate::backend::CodeGraphBackend;
-use codegraph::{CodeGraph, Direction, EdgeType, NodeId, NodeType};
+use codegraph::{CodeGraph, Direction, EdgeType, NodeId};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashSet, VecDeque};
 use tower_lsp::jsonrpc::Result;

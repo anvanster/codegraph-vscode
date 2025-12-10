@@ -72,10 +72,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     aiProvider = new CodeGraphAIProvider(client);
 
     // Register Language Model Tools for autonomous AI agent access
-    toolManager = new CodeGraphToolManager(client);
-    toolManager.registerTools();
-
-    vscode.window.showInformationMessage('CodeGraph: AI tools registered and available to AI agents');
+    try {
+        toolManager = new CodeGraphToolManager(client);
+        toolManager.registerTools();
+        vscode.window.showInformationMessage('CodeGraph: AI tools registered and available to AI agents');
+    } catch (error) {
+        console.error('[CodeGraph] Failed to register Language Model Tools:', error);
+        vscode.window.showWarningMessage(`CodeGraph: Could not register AI tools: ${error}`);
+        // Continue activation even if tool registration fails
+    }
 
     // Register commands, tree providers, etc.
     registerCommands(context, client, aiProvider);

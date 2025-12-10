@@ -181,8 +181,25 @@ export class CodeGraphToolManager {
                             new vscode.LanguageModelTextPart(this.formatAIContext(response))
                         ]);
                     } catch (error) {
+                        const errorMessage = String(error);
+                        let helpfulMessage = '# AI Context Unavailable\n\n';
+
+                        if (errorMessage.includes('No symbol at position')) {
+                            helpfulMessage += '❌ No code symbol found at the specified position.\n\n';
+                            helpfulMessage += '**This could mean:**\n';
+                            helpfulMessage += '- The position is in whitespace, comments, or imports\n';
+                            helpfulMessage += '- The file has not been indexed by CodeGraph yet\n';
+                            helpfulMessage += '- The specified line/character is out of bounds\n\n';
+                            helpfulMessage += '**Try:**\n';
+                            helpfulMessage += '- Place cursor on a function, class, or variable definition\n';
+                            helpfulMessage += '- Run "CodeGraph: Reindex Workspace" to update the index\n';
+                            helpfulMessage += '- Verify the file is a supported language (TypeScript, JavaScript, Python, Rust, Go)\n';
+                        } else {
+                            helpfulMessage += `Error: ${errorMessage}\n`;
+                        }
+
                         return new vscode.LanguageModelToolResult([
-                            new vscode.LanguageModelTextPart(`Error getting AI context: ${error}`)
+                            new vscode.LanguageModelTextPart(helpfulMessage)
                         ]);
                     }
                 },
@@ -221,8 +238,25 @@ export class CodeGraphToolManager {
                             new vscode.LanguageModelTextPart(this.formatTestContext(response))
                         ]);
                     } catch (error) {
+                        const errorMessage = String(error);
+                        let helpfulMessage = '# Related Tests Not Found\n\n';
+
+                        if (errorMessage.includes('No symbol at position')) {
+                            helpfulMessage += '❌ No code symbol found to search for related tests.\n\n';
+                            helpfulMessage += '**This could mean:**\n';
+                            helpfulMessage += '- The specified position is not on a testable code element\n';
+                            helpfulMessage += '- The file has not been indexed by CodeGraph yet\n';
+                            helpfulMessage += '- No tests exist for this code (which might be OK)\n\n';
+                            helpfulMessage += '**Try:**\n';
+                            helpfulMessage += '- Specify a line with a function or class definition\n';
+                            helpfulMessage += '- Run "CodeGraph: Reindex Workspace" to update the index\n';
+                            helpfulMessage += '- Check if tests actually exist in your codebase\n';
+                        } else {
+                            helpfulMessage += `Error: ${errorMessage}\n`;
+                        }
+
                         return new vscode.LanguageModelToolResult([
-                            new vscode.LanguageModelTextPart(`Error finding related tests: ${error}`)
+                            new vscode.LanguageModelTextPart(helpfulMessage)
                         ]);
                     }
                 },
@@ -340,6 +374,20 @@ export class CodeGraphToolManager {
         const { root, nodes, edges } = response;
 
         let output = '# Call Graph\n\n';
+
+        // Handle case where no function was found at the position
+        if (!root) {
+            output += '❌ No function found at the specified position.\n\n';
+            output += 'This could mean:\n';
+            output += '- The cursor is not on a function definition\n';
+            output += '- The file has not been indexed yet\n';
+            output += '- The position is in a comment or whitespace\n\n';
+            output += 'Try:\n';
+            output += '- Place cursor on a function name\n';
+            output += '- Run "CodeGraph: Reindex Workspace" if the file is new\n';
+            return output;
+        }
+
         output += `Found ${nodes.length} functions with ${edges.length} call relationships.\n\n`;
 
         // Show root function
@@ -525,7 +573,9 @@ export class CodeGraphToolManager {
         if (data.definitions && data.definitions.length > 0) {
             output += `## Definition${data.definitions.length > 1 ? 's' : ''}\n`;
             data.definitions.forEach(def => {
-                output += `- ${def.uri.fsPath}:${def.range.start.line + 1}\n`;
+                if (def && def.uri && def.range) {
+                    output += `- ${def.uri.fsPath}:${def.range.start.line + 1}\n`;
+                }
             });
             output += '\n';
         }
@@ -535,6 +585,7 @@ export class CodeGraphToolManager {
             // Group by file
             const byFile = new Map<string, vscode.Location[]>();
             data.references.forEach(ref => {
+                if (!ref || !ref.uri) return;
                 const path = ref.uri.fsPath;
                 if (!byFile.has(path)) {
                     byFile.set(path, []);

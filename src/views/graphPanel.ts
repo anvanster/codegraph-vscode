@@ -52,6 +52,8 @@ export class GraphVisualizationPanel {
     ) {
         this.panel = panel;
         this.extensionUri = extensionUri;
+        this.currentGraphType = graphType;
+        this.expandedNodes = new Set();
 
         this.panel.webview.html = this.getWebviewContent();
         this.setupMessageHandlers();
@@ -159,14 +161,86 @@ export class GraphVisualizationPanel {
         }
     }
 
+    private currentGraphType: 'dependency' | 'call' = 'dependency';
+    private currentUri: string = '';
+    private expandedNodes: Set<string> = new Set();
+
     private async expandNode(nodeId: string): Promise<void> {
+        // Prevent duplicate expansions
+        if (this.expandedNodes.has(nodeId)) {
+            return;
+        }
+
         // Request more data centered on this node
         this.panel.webview.postMessage({
             command: 'expanding',
             nodeId,
         });
 
-        // TODO: Implement expand logic based on graph type
+        try {
+            // Get the location of the node to expand from
+            const location = await this.client.sendRequest('workspace/executeCommand', {
+                command: 'codegraph.getNodeLocation',
+                arguments: [{ nodeId }]
+            }) as NodeLocation | null;
+
+            if (!location) {
+                this.panel.webview.postMessage({
+                    command: 'expandComplete',
+                    nodeId,
+                    success: false,
+                    message: 'Could not find node location',
+                });
+                return;
+            }
+
+            let expandedData: GraphData;
+
+            if (this.currentGraphType === 'dependency') {
+                // Fetch dependency graph centered on this node's file
+                const response = await this.client.sendRequest('workspace/executeCommand', {
+                    command: 'codegraph.getDependencyGraph',
+                    arguments: [{
+                        uri: location.uri,
+                        depth: 2,
+                        includeExternal: false,
+                        direction: 'both',
+                    }]
+                }) as DependencyGraphResponse;
+                expandedData = this.convertToGraphData('dependency', response);
+            } else {
+                // Fetch call graph centered on this node's position
+                const response = await this.client.sendRequest('workspace/executeCommand', {
+                    command: 'codegraph.getCallGraph',
+                    arguments: [{
+                        uri: location.uri,
+                        position: location.range.start,
+                        depth: 2,
+                        includeCallers: true,
+                    }]
+                }) as CallGraphResponse;
+                expandedData = this.convertToGraphData('call', response);
+            }
+
+            // Mark node as expanded
+            this.expandedNodes.add(nodeId);
+
+            // Send expanded data to merge with current graph
+            this.panel.webview.postMessage({
+                command: 'expandComplete',
+                nodeId,
+                success: true,
+                data: expandedData,
+            });
+        } catch (error) {
+            console.error('Failed to expand node:', error);
+            this.panel.webview.postMessage({
+                command: 'expandComplete',
+                nodeId,
+                success: false,
+                message: `Failed to expand: ${error}`,
+            });
+        }
     }
 
     private async refresh(params: DependencyGraphParams | CallGraphParams): Promise<void> {
@@ -338,6 +412,18 @@ export class GraphVisualizationPanel {
             color: var(--vscode-errorForeground, #f14c4c);
             text-align: center;
         }
+        .node.expanding circle {
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { stroke-width: 2px; }
+            50% { stroke-width: 5px; }
+            100% { stroke-width: 2px; }
+        }
+        .node.expanded circle {
+            stroke: #4CAF50;
+            stroke-width: 3px;
+        }
     </style>
 </head>
 <body>
@@ -480,6 +566,7 @@ export class GraphVisualizationPanel {
 
         function renderGraph(data, graphType) {
             currentData = data;
+            currentData.graphType = graphType;
             initSvg();
 
             if (!data.nodes || data.nodes.length === 0) {
@@ -527,6 +614,7 @@ export class GraphVisualizationPanel {
             nodeMap.forEach((node, id) => {
                 const nodeEl = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 nodeEl.setAttribute('class', 'node');
+                nodeEl.setAttribute('data-id', id);
                 nodeEl._node = node;
 
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -700,12 +788,74 @@ export class GraphVisualizationPanel {
             }
         }
 
+        // Track expanding nodes
+        let expandingNodes = new Set();
+
+        function mergeGraphData(existing, newData) {
+            // Create maps for deduplication
+            const nodeMap = new Map();
+            existing.nodes.forEach(n => nodeMap.set(n.id, n));
+            newData.nodes.forEach(n => {
+                if (!nodeMap.has(n.id)) {
+                    nodeMap.set(n.id, n);
+                }
+            });
+
+            const edgeSet = new Set();
+            const edges = [];
+
+            function edgeKey(e) {
+                return e.from + '->' + e.to + ':' + e.type;
+            }
+
+            existing.edges.forEach(e => {
+                const key = edgeKey(e);
+                if (!edgeSet.has(key)) {
+                    edgeSet.add(key);
+                    edges.push(e);
+                }
+            });
+
+            newData.edges.forEach(e => {
+                const key = edgeKey(e);
+                if (!edgeSet.has(key)) {
+                    edgeSet.add(key);
+                    edges.push(e);
+                }
+            });
+
+            return {
+                nodes: Array.from(nodeMap.values()),
+                edges: edges
+            };
+        }
+
         // Message handling
         window.addEventListener('message', event => {
             const message = event.data;
             switch (message.command) {
                 case 'renderGraph':
                     renderGraph(message.data, message.graphType);
+                    break;
+                case 'expanding':
+                    // Show loading indicator on the node
+                    expandingNodes.add(message.nodeId);
+                    const nodeEl = document.querySelector('.node[data-id="' + message.nodeId + '"]');
+                    if (nodeEl) {
+                        nodeEl.classList.add('expanding');
+                    }
+                    break;
+                case 'expandComplete':
+                    expandingNodes.delete(message.nodeId);
+                    const expandedNode = document.querySelector('.node[data-id="' + message.nodeId + '"]');
+                    if (expandedNode) {
+                        expandedNode.classList.remove('expanding');
+                    }
+                    if (message.success && message.data && currentData) {
+                        // Merge new data with existing and re-render
+                        const mergedData = mergeGraphData(currentData, message.data);
+                        renderGraph(mergedData, currentData.graphType || 'dependency');
+                    }
                     break;
                 case 'error':
                     document.getElementById('root').innerHTML =

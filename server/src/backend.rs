@@ -108,22 +108,20 @@ impl CodeGraphBackend {
                         if let Some(ext) = path.extension() {
                             let ext_str = ext.to_string_lossy();
                             if supported_extensions.iter().any(|&e| e.trim_start_matches('.') == ext_str) {
-                                // Parse the file
-                                if let Ok(content) = fs::read_to_string(&path) {
-                                    if let Some(parser) = self.parsers.parser_for_path(&path) {
-                                        let mut graph = self.graph.write().await;
-                                        match parser.parse_source(&content, &path, &mut graph) {
-                                            Ok(file_info) => {
-                                                self.symbol_index.add_file(path.clone(), &file_info, &graph);
-                                                self.file_cache.insert(
-                                                    Url::from_file_path(&path).unwrap(),
-                                                    file_info
-                                                );
-                                                indexed_count += 1;
-                                            }
-                                            Err(e) => {
-                                                tracing::warn!("Failed to parse {:?}: {}", path, e);
-                                            }
+                                // Parse the file using parse_file (which updates metrics)
+                                if let Some(parser) = self.parsers.parser_for_path(&path) {
+                                    let mut graph = self.graph.write().await;
+                                    match parser.parse_file(&path, &mut graph) {
+                                        Ok(file_info) => {
+                                            self.symbol_index.add_file(path.clone(), &file_info, &graph);
+                                            self.file_cache.insert(
+                                                Url::from_file_path(&path).unwrap(),
+                                                file_info
+                                            );
+                                            indexed_count += 1;
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!("Failed to parse {:?}: {}", path, e);
                                         }
                                     }
                                 }
@@ -149,18 +147,32 @@ impl CodeGraphBackend {
         let line = (position.line + 1) as i64;
         let col = position.character as i64;
 
+        tracing::info!(
+            "find_node_at_position: path={:?}, LSP position={}:{}, converted={}:{}",
+            path,
+            position.line,
+            position.character,
+            line,
+            col
+        );
+
         // Try the symbol index first (faster)
         if let Some(node_id) = self.symbol_index.find_at_position(path, line as u32, col as u32) {
+            tracing::info!("Found node in symbol index: {:?}", node_id);
             return Ok(Some(node_id));
         }
+
+        tracing::info!("Not found in symbol index, trying graph query");
 
         // Fallback to graph query
         let path_str = path.to_string_lossy().to_string();
         let nodes = graph
             .query()
-            .property("path", path_str)
+            .property("path", path_str.clone())
             .execute()
             .map_err(|e| LspError::Graph(e.to_string()))?;
+
+        tracing::info!("Graph query for path '{}' returned {} nodes", path_str, nodes.len());
 
         for node_id in nodes {
             if let Ok(node) = graph.get_node(node_id) {
@@ -169,6 +181,16 @@ impl CodeGraphBackend {
                 let start_col = node.properties.get_int("start_col").unwrap_or(0);
                 let end_col = node.properties.get_int("end_col").unwrap_or(i64::MAX);
 
+                tracing::info!(
+                    "Checking node {:?} '{}' at {}:{} to {}:{}",
+                    node_id,
+                    node.properties.get_string("name").unwrap_or(""),
+                    start_line,
+                    start_col,
+                    end_line,
+                    end_col
+                );
+
                 if line >= start_line && line <= end_line {
                     if line == start_line && col < start_col {
                         continue;
@@ -176,11 +198,13 @@ impl CodeGraphBackend {
                     if line == end_line && col > end_col {
                         continue;
                     }
+                    tracing::info!("Found matching node: {:?}", node_id);
                     return Ok(Some(node_id));
                 }
             }
         }
 
+        tracing::warn!("No node found at position {}:{} in {:?}", line, col, path);
         Ok(None)
     }
 
@@ -324,6 +348,7 @@ impl CodeGraphBackend {
     }
 
     /// Helper to get a string property from a node
+    #[allow(dead_code)]
     fn get_node_string_property(&self, graph: &CodeGraph, node_id: NodeId, key: &str) -> Option<String> {
         graph.get_node(node_id).ok()?.properties.get_string(key).map(|s| s.to_string())
     }
