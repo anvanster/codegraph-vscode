@@ -1,6 +1,10 @@
-# Source files (compiled output is in out/)
+# Source files (bundled output is in out/extension.js)
 src/**
 !src/**/*.d.ts
+
+# TypeScript compiled files (we use esbuild bundle instead)
+out/**
+!out/extension.js
 
 # Rust source (binary is pre-built)
 server/src/**
@@ -45,6 +49,7 @@ tsconfig.json
 vitest.config.*
 vsforge.config.json
 .gitignore
+esbuild.js
 
 # Scripts (not needed at runtime)
 scripts/**

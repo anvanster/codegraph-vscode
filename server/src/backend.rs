@@ -594,6 +594,7 @@ impl LanguageServer for CodeGraphBackend {
                         "codegraph.getParserMetrics".to_string(),
                         "codegraph.reindexWorkspace".to_string(),
                         "codegraph.getAIContext".to_string(),
+                        "codegraph.findRelatedTests".to_string(),
                         "codegraph.getNodeLocation".to_string(),
                         "codegraph.getWorkspaceSymbols".to_string(),
                     ],
@@ -1168,6 +1169,18 @@ impl LanguageServer for CodeGraphBackend {
                         tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
                     })?;
                 let response = self.handle_get_ai_context(params).await?;
+                Ok(Some(serde_json::to_value(response).unwrap()))
+            }
+
+            "codegraph.findRelatedTests" => {
+                let args = params.arguments.first().ok_or_else(|| {
+                    tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
+                })?;
+                let params: crate::handlers::RelatedTestsParams =
+                    serde_json::from_value(args.clone()).map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
+                let response = self.handle_find_related_tests(params).await?;
                 Ok(Some(serde_json::to_value(response).unwrap()))
             }
 

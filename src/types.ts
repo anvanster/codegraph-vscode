@@ -168,6 +168,28 @@ export interface ImpactAnalysisResponse {
 }
 
 // ==========================================
+// Related Tests Types
+// ==========================================
+
+export interface RelatedTestsParams {
+    uri: string;
+    position: Position;
+    limit?: number;
+}
+
+export interface RelatedTest {
+    uri: string;
+    testName: string;
+    relationship: string;
+    range: Range;
+}
+
+export interface RelatedTestsResponse {
+    tests: RelatedTest[];
+    truncated?: boolean;
+}
+
+// ==========================================
 // Parser Metrics Types
 // ==========================================
 

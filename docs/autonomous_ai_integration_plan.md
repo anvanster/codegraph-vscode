@@ -73,8 +73,8 @@ The VS Code Language Model Tools API is **stable and available** in VS Code 1.90
             },
             "direction": {
               "type": "string",
-              "enum": ["imports", "dependents", "both"],
-              "description": "Direction to analyze: 'imports' (what this file uses), 'dependents' (what uses this file), or 'both'",
+              "enum": ["imports", "importedBy", "both"],
+              "description": "Direction to analyze: 'imports' (what this file uses), 'importedBy' (what uses this file), or 'both'",
               "default": "both"
             }
           },
@@ -517,9 +517,9 @@ export class CodeGraphToolManager {
         let output = '# Dependency Graph\n\n';
         output += `Found ${nodes.length} files/modules with ${edges.length} dependencies.\n\n`;
 
-        // Group by import vs dependent
-        const imports = edges.filter(e => e.type === 'imports');
-        const dependents = edges.filter(e => e.type === 'dependents');
+        // Group by import vs importedBy
+        const imports = edges.filter(e => e.type === 'import');
+        const importedBy = edges.filter(e => e.type === 'importedBy');
 
         if (imports.length > 0) {
             output += `## Imports (${imports.length})\n`;
@@ -531,9 +531,9 @@ export class CodeGraphToolManager {
             output += '\n';
         }
 
-        if (dependents.length > 0) {
-            output += `## Dependents (${dependents.length})\n`;
-            dependents.forEach(edge => {
+        if (importedBy.length > 0) {
+            output += `## Imported By (${importedBy.length})\n`;
+            importedBy.forEach(edge => {
                 const source = nodes.find(n => n.id === edge.source);
                 const target = nodes.find(n => n.id === edge.target);
                 output += `- ${source?.label || edge.source} ← ${target?.label || edge.target}\n`;

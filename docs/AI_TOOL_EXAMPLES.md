@@ -33,7 +33,7 @@ CodeGraph tools provide **semantic understanding** rather than text matching. Th
   "uri": "file:///path/to/file.ts",    // Required: file to analyze
   "depth": 3,                           // Optional: traversal depth (1-10)
   "includeExternal": false,             // Optional: include node_modules
-  "direction": "both"                   // Optional: "imports", "dependents", or "both"
+  "direction": "both"                   // Optional: "imports", "importedBy", or "both"
 }
 ```
 
@@ -441,24 +441,27 @@ test('user can complete payment', async ({ page }) => {
 
 ### 6. `codegraph_get_symbol_info`
 
-**Purpose:** Get metadata about a symbol — its type, signature, documentation, and usage statistics.
+**Purpose:** Get metadata about a symbol — its type, signature, documentation, and optionally usage statistics.
 
 **When to use:**
 - Quick symbol lookup
 - Understanding function signatures
 - Finding documentation
-- Assessing symbol usage
+- Assessing symbol usage (with `includeReferences: true`)
 
 **Parameters:**
 ```json
 {
   "uri": "file:///path/to/file.ts",    // Required: file containing symbol
   "line": 45,                           // Required: line number (0-indexed)
-  "character": 0                        // Optional: character position
+  "character": 0,                       // Optional: character position
+  "includeReferences": false            // Optional: include all references (can be slow)
 }
 ```
 
-**Example — "What is calculateDiscount?"**
+**Performance note:** Reference search can be slow on large workspaces. By default, references are not included. Set `includeReferences: true` only when you need usage statistics. For dependency analysis, consider using `codegraph_analyze_impact` instead.
+
+**Example — "What is calculateDiscount?" (fast, no references)**
 
 ```
 Tool: codegraph_get_symbol_info
@@ -485,6 +488,34 @@ Location: file:///project/src/pricing/discounts.ts:35:16
  */
 function calculateDiscount(total: number, tier: CustomerTier): number
 ```
+
+## Definition
+- /project/src/pricing/discounts.ts:35
+
+## References
+_References not included. Set `includeReferences: true` to find usages (may be slow)._
+```
+
+**Example — "Where is calculateDiscount used?" (with references)**
+
+```
+Tool: codegraph_get_symbol_info
+Input: {
+  "uri": "file:///project/src/pricing/discounts.ts",
+  "line": 34,
+  "character": 15,
+  "includeReferences": true
+}
+```
+
+**Output (with references):**
+```markdown
+# Symbol Information
+
+Location: file:///project/src/pricing/discounts.ts:35:16
+
+## Documentation & Type Information
+[...same as above...]
 
 ## Definition
 - /project/src/pricing/discounts.ts:35

@@ -51,6 +51,13 @@ impl CodeGraphBackend {
                 serde_json::to_value(response).map_err(|_| Error::internal_error())
             }
 
+            "codegraph/findRelatedTests" => {
+                let params: RelatedTestsParams = serde_json::from_value(params)
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
+                let response = self.handle_find_related_tests(params).await?;
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
+            }
+
             "codegraph/getNodeLocation" => {
                 let params: GetNodeLocationParams = serde_json::from_value(params)
                     .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;

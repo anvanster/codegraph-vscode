@@ -81,6 +81,35 @@ pub struct DependencyGraphResponse {
     pub edges: Vec<DependencyEdge>,
 }
 
+// ==========================================
+// Related Tests Request
+// ==========================================
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelatedTestsParams {
+    pub uri: String,
+    pub position: Position,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelatedTest {
+    pub uri: String,
+    pub test_name: String,
+    pub relationship: String,
+    pub range: Range,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelatedTestsResponse {
+    pub tests: Vec<RelatedTest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncated: Option<bool>,
+}
+
 impl CodeGraphBackend {
     pub async fn handle_get_dependency_graph(
         &self,
@@ -194,6 +223,136 @@ impl CodeGraphBackend {
         }
 
         Ok(DependencyGraphResponse { nodes, edges })
+    }
+
+    /// Find tests related to a symbol at the given position using graph relationships.
+    pub async fn handle_find_related_tests(
+        &self,
+        params: RelatedTestsParams,
+    ) -> Result<RelatedTestsResponse> {
+        let uri = Url::parse(&params.uri)
+            .map_err(|_| tower_lsp::jsonrpc::Error::invalid_params("Invalid URI"))?;
+
+        let path = uri
+            .to_file_path()
+            .map_err(|_| tower_lsp::jsonrpc::Error::invalid_params("Invalid file path"))?;
+
+        let graph = self.graph.read().await;
+        let limit = params.limit.unwrap_or(10);
+
+        // Find node at position
+        let Some(node_id) = self.find_node_at_position(&graph, &path, params.position)? else {
+            return Ok(RelatedTestsResponse {
+                tests: Vec::new(),
+                truncated: None,
+            });
+        };
+
+        let mut tests = Vec::new();
+        let mut seen = HashSet::new();
+
+        // First, look for direct callers/references that are tests
+        for (source_id, _target_id, edge_type) in Self::get_incoming_edges(&graph, node_id) {
+            if let Ok(node) = graph.get_node(source_id) {
+                if !Self::is_test_node(node) {
+                    continue;
+                }
+
+                if !seen.insert(source_id) {
+                    continue;
+                }
+
+                if let Some(range) = Self::node_to_range(node) {
+                    tests.push(RelatedTest {
+                        uri: node.properties.get_string("path").unwrap_or("").to_string(),
+                        test_name: node.properties.get_string("name").unwrap_or("").to_string(),
+                        relationship: match edge_type {
+                            EdgeType::Calls => "calls_target".to_string(),
+                            EdgeType::References => "references_target".to_string(),
+                            _ => "related".to_string(),
+                        },
+                        range,
+                    });
+                }
+            }
+
+            if tests.len() >= limit {
+                break;
+            }
+        }
+
+        // If we did not find enough, look for siblings in the same file with test-like names
+        if tests.len() < limit {
+            let path_str = path.to_string_lossy().to_string();
+            if let Ok(same_file_nodes) = graph.query().property("path", path_str).execute() {
+                for sibling_id in same_file_nodes {
+                    if sibling_id == node_id || seen.contains(&sibling_id) {
+                        continue;
+                    }
+                    if let Ok(node) = graph.get_node(sibling_id) {
+                        if !Self::is_test_node(node) {
+                            continue;
+                        }
+
+                        if let Some(range) = Self::node_to_range(node) {
+                            tests.push(RelatedTest {
+                                uri: node.properties.get_string("path").unwrap_or("").to_string(),
+                                test_name: node
+                                    .properties
+                                    .get_string("name")
+                                    .unwrap_or("")
+                                    .to_string(),
+                                relationship: "same_file".to_string(),
+                                range,
+                            });
+                            seen.insert(sibling_id);
+                        }
+                    }
+
+                    if tests.len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+
+        let truncated = if tests.len() >= limit {
+            Some(true)
+        } else {
+            None
+        };
+
+        Ok(RelatedTestsResponse { tests, truncated })
+    }
+
+    fn is_test_node(node: &Node) -> bool {
+        let name = node.properties.get_string("name").unwrap_or("");
+        let path = node.properties.get_string("path").unwrap_or("");
+
+        let name_is_test =
+            name.starts_with("test_") || name.ends_with("_test") || name.contains("test ");
+        let path_is_test = path.contains("/test")
+            || path.contains("/tests")
+            || path.contains("\\test")
+            || path.contains("\\tests");
+
+        name_is_test || path_is_test
+    }
+
+    fn node_to_range(node: &Node) -> Option<Range> {
+        let start_line = get_line_start(node).saturating_sub(1);
+        let end_line = get_line_end(node, start_line + 2).saturating_sub(1);
+
+        Some(Range {
+            start: Position {
+                line: start_line,
+                character: get_col_start(node),
+            },
+            end: Position {
+                line: end_line,
+                character: get_col_end(node),
+            },
+        })
     }
 
     /// Helper function to collect edges based on direction parameter.

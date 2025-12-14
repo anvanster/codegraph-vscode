@@ -413,43 +413,46 @@ describe('CodeGraphToolManager', () => {
         });
     });
 
-    describe('formatTestContext', () => {
-        it('should filter and format test-related symbols', async () => {
+    describe('formatRelatedTests', () => {
+        it('should format related tests response', async () => {
             const { CodeGraphToolManager } = await import('./toolManager');
             const manager = new CodeGraphToolManager(mockClient as any);
-            const format = (manager as any).formatTestContext.bind(manager);
+            const format = (manager as any).formatRelatedTests.bind(manager);
 
             const response = {
-                primaryContext: { type: 'function', name: 'processData', code: '', language: 'typescript', location: {} },
-                relatedSymbols: [
-                    { name: 'testProcessData', relationship: 'tests', code: 'it("should process", () => {})', relevanceScore: 0.9, location: {} },
-                    { name: 'helper', relationship: 'calls', code: 'function helper() {}', relevanceScore: 0.8, location: {} },
-                    { name: 'processDataTest', relationship: 'related', code: 'describe("processData", () => {})', relevanceScore: 0.85, location: {} },
+                tests: [
+                    {
+                        uri: 'file:///project/src/processData.test.ts',
+                        testName: 'testProcessData',
+                        relationship: 'direct',
+                        range: { start: { line: 10, character: 0 }, end: { line: 20, character: 0 } }
+                    },
+                    {
+                        uri: 'file:///project/src/processData.test.ts',
+                        testName: 'processDataIntegrationTest',
+                        relationship: 'indirect',
+                        range: { start: { line: 30, character: 0 }, end: { line: 40, character: 0 } }
+                    },
                 ],
-                dependencies: [],
-                metadata: { totalTokens: 150, queryTime: 80 },
+                truncated: false,
             };
 
             const result = format(response);
 
             expect(result).toContain('# Related Tests');
             expect(result).toContain('testProcessData');
-            expect(result).toContain('processDataTest');
-            expect(result).not.toContain('helper');
+            expect(result).toContain('processDataIntegrationTest');
+            expect(result).toContain('Found 2 related test(s)');
         });
 
         it('should handle no related tests found', async () => {
             const { CodeGraphToolManager } = await import('./toolManager');
             const manager = new CodeGraphToolManager(mockClient as any);
-            const format = (manager as any).formatTestContext.bind(manager);
+            const format = (manager as any).formatRelatedTests.bind(manager);
 
             const response = {
-                primaryContext: { type: 'function', name: 'internal', code: '', language: 'typescript', location: {} },
-                relatedSymbols: [
-                    { name: 'helper', relationship: 'calls', code: 'function helper() {}', relevanceScore: 0.8, location: {} },
-                ],
-                dependencies: [],
-                metadata: { totalTokens: 50, queryTime: 30 },
+                tests: [],
+                truncated: false,
             };
 
             const result = format(response);
