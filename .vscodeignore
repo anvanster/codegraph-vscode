@@ -11,6 +11,7 @@ server/src/**
 server/Cargo.toml
 server/Cargo.lock
 server/target/**
+server/bin/**
 Cargo.toml
 Cargo.lock
 
