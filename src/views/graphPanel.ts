@@ -28,6 +28,7 @@ interface NodeLocation {
     };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 namespace GetNodeLocationRequest {
     export const type = new RequestType<{ nodeId: string }, NodeLocation | null, void>(
         'codegraph/getNodeLocation'

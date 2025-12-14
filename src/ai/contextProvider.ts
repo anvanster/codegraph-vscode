@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { LanguageClient, RequestType } from 'vscode-languageclient/node';
 import { AIContextParams, AIContextResponse } from '../types';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 namespace GetAIContextRequest {
     export const type = new RequestType<AIContextParams, AIContextResponse, void>(
         'codegraph/getAIContext'

@@ -13,31 +13,36 @@ import {
 } from '../types';
 import { GraphVisualizationPanel } from '../views/graphPanel';
 
-// Define custom request types
+// Define custom request types (used for LSP type inference)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 namespace GetDependencyGraphRequest {
     export const type = new RequestType<DependencyGraphParams, DependencyGraphResponse, void>(
         'codegraph/getDependencyGraph'
     );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 namespace GetCallGraphRequest {
     export const type = new RequestType<CallGraphParams, CallGraphResponse, void>(
         'codegraph/getCallGraph'
     );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 namespace GetImpactAnalysisRequest {
     export const type = new RequestType<ImpactAnalysisParams, ImpactAnalysisResponse, void>(
         'codegraph/analyzeImpact'
     );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 namespace GetParserMetricsRequest {
     export const type = new RequestType<ParserMetricsParams, ParserMetricsResponse, void>(
         'codegraph/getParserMetrics'
     );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 namespace ReindexWorkspaceRequest {
     export const type = new RequestType<void, void, void>(
         'codegraph/reindexWorkspace'
@@ -50,7 +55,7 @@ namespace ReindexWorkspaceRequest {
 export function registerCommands(
     context: vscode.ExtensionContext,
     client: LanguageClient,
-    aiProvider: CodeGraphAIProvider
+    _aiProvider: CodeGraphAIProvider
 ): void {
     // Helper to safely register commands
     const safeRegisterCommand = (commandId: string, callback: (...args: any[]) => any) => {

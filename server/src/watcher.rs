@@ -268,7 +268,10 @@ mod tests {
     use super::*;
 
     // Helper to create a mock FileInfo using GraphUpdater
-    async fn create_file_info_via_update(path: &str, content: &str) -> codegraph_parser_api::FileInfo {
+    async fn create_file_info_via_update(
+        path: &str,
+        content: &str,
+    ) -> codegraph_parser_api::FileInfo {
         let graph = Arc::new(RwLock::new(CodeGraph::in_memory().unwrap()));
         let parsers = Arc::new(ParserRegistry::new());
         let files = vec![(PathBuf::from(path), content.to_string())];
@@ -379,9 +382,10 @@ mod tests {
         let graph = Arc::new(RwLock::new(CodeGraph::in_memory().unwrap()));
         let parsers = Arc::new(ParserRegistry::new());
 
-        let files = vec![
-            (PathBuf::from("test.py"), "def foo():\n    pass\n".to_string()),
-        ];
+        let files = vec![(
+            PathBuf::from("test.py"),
+            "def foo():\n    pass\n".to_string(),
+        )];
 
         let result = GraphUpdater::update_files(&graph, &parsers, &files).await;
 
@@ -412,9 +416,7 @@ mod tests {
         let graph = Arc::new(RwLock::new(CodeGraph::in_memory().unwrap()));
         let parsers = Arc::new(ParserRegistry::new());
 
-        let files = vec![
-            (PathBuf::from("readme.txt"), "hello world".to_string()),
-        ];
+        let files = vec![(PathBuf::from("readme.txt"), "hello world".to_string())];
 
         let result = GraphUpdater::update_files(&graph, &parsers, &files).await;
 
@@ -431,7 +433,7 @@ mod tests {
 
         let files = vec![
             (PathBuf::from("valid.py"), "def foo(): pass".to_string()),
-            (PathBuf::from("readme.md"), "# Hello".to_string()),  // unsupported
+            (PathBuf::from("readme.md"), "# Hello".to_string()), // unsupported
             (PathBuf::from("valid.rs"), "fn bar() {}".to_string()),
         ];
 
@@ -448,15 +450,17 @@ mod tests {
         let parsers = Arc::new(ParserRegistry::new());
 
         // First update
-        let files1 = vec![
-            (PathBuf::from("test.py"), "def old_function(): pass".to_string()),
-        ];
+        let files1 = vec![(
+            PathBuf::from("test.py"),
+            "def old_function(): pass".to_string(),
+        )];
         GraphUpdater::update_files(&graph, &parsers, &files1).await;
 
         // Second update with new content (should replace old)
-        let files2 = vec![
-            (PathBuf::from("test.py"), "def new_function(): pass".to_string()),
-        ];
+        let files2 = vec![(
+            PathBuf::from("test.py"),
+            "def new_function(): pass".to_string(),
+        )];
         let result = GraphUpdater::update_files(&graph, &parsers, &files2).await;
 
         assert!(result.all_succeeded());

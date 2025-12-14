@@ -96,7 +96,7 @@ impl CodeGraphBackend {
                 self.client
                     .log_message(
                         MessageType::ERROR,
-                        format!("Failed to create file watcher: {}", e),
+                        format!("Failed to create file watcher: {e}"),
                     )
                     .await;
             }
@@ -121,7 +121,10 @@ impl CodeGraphBackend {
     }
 
     /// Index all supported files in a directory
-    fn index_directory<'a>(&'a self, dir: &'a std::path::Path) -> std::pin::Pin<Box<dyn std::future::Future<Output = usize> + Send + 'a>> {
+    fn index_directory<'a>(
+        &'a self,
+        dir: &'a std::path::Path,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = usize> + Send + 'a>> {
         Box::pin(async move {
             use std::fs;
 
@@ -144,7 +147,10 @@ impl CodeGraphBackend {
                     if path.is_dir() {
                         // Skip common directories
                         let dir_name = path.file_name().unwrap().to_string_lossy();
-                        if matches!(dir_name.as_ref(), "node_modules" | "target" | "dist" | "build" | ".git" | "__pycache__") {
+                        if matches!(
+                            dir_name.as_ref(),
+                            "node_modules" | "target" | "dist" | "build" | ".git" | "__pycache__"
+                        ) {
                             continue;
                         }
 
@@ -154,16 +160,23 @@ impl CodeGraphBackend {
                         // Check if file has supported extension
                         if let Some(ext) = path.extension() {
                             let ext_str = ext.to_string_lossy();
-                            if supported_extensions.iter().any(|&e| e.trim_start_matches('.') == ext_str) {
+                            if supported_extensions
+                                .iter()
+                                .any(|&e| e.trim_start_matches('.') == ext_str)
+                            {
                                 // Parse the file using parse_file (which updates metrics)
                                 if let Some(parser) = self.parsers.parser_for_path(&path) {
                                     let mut graph = self.graph.write().await;
                                     match parser.parse_file(&path, &mut graph) {
                                         Ok(file_info) => {
-                                            self.symbol_index.add_file(path.clone(), &file_info, &graph);
+                                            self.symbol_index.add_file(
+                                                path.clone(),
+                                                &file_info,
+                                                &graph,
+                                            );
                                             self.file_cache.insert(
                                                 Url::from_file_path(&path).unwrap(),
-                                                file_info
+                                                file_info,
                                             );
                                             indexed_count += 1;
                                         }
@@ -204,7 +217,10 @@ impl CodeGraphBackend {
         );
 
         // Try the symbol index first (faster)
-        if let Some(node_id) = self.symbol_index.find_at_position(path, line as u32, col as u32) {
+        if let Some(node_id) = self
+            .symbol_index
+            .find_at_position(path, line as u32, col as u32)
+        {
             tracing::info!("Found node in symbol index: {:?}", node_id);
             return Ok(Some(node_id));
         }
@@ -215,7 +231,11 @@ impl CodeGraphBackend {
         // The graph stores line_start/line_end (not start_line/end_line)
         let file_symbols = self.symbol_index.get_file_symbols(path);
 
-        tracing::info!("Symbol index returned {} symbols for {:?}", file_symbols.len(), path);
+        tracing::info!(
+            "Symbol index returned {} symbols for {:?}",
+            file_symbols.len(),
+            path
+        );
 
         for node_id in file_symbols {
             if let Ok(node) = graph.get_node(node_id) {
@@ -417,9 +437,7 @@ impl CodeGraphBackend {
                             node_name
                         );
                         return Err(LspError::NodeNotFound(format!(
-                            "Cannot determine file path for {} '{}'",
-                            node_type,
-                            node_name
+                            "Cannot determine file path for {node_type} '{node_name}'"
                         )));
                     }
                 }
@@ -427,16 +445,24 @@ impl CodeGraphBackend {
         };
 
         // Support both property name conventions (line_start or start_line)
-        let start_line = node.properties.get_int("line_start")
+        let start_line = node
+            .properties
+            .get_int("line_start")
             .or_else(|| node.properties.get_int("start_line"))
             .unwrap_or(1) as u32;
-        let start_col = node.properties.get_int("col_start")
+        let start_col = node
+            .properties
+            .get_int("col_start")
             .or_else(|| node.properties.get_int("start_col"))
             .unwrap_or(0) as u32;
-        let end_line = node.properties.get_int("line_end")
+        let end_line = node
+            .properties
+            .get_int("line_end")
             .or_else(|| node.properties.get_int("end_line"))
             .unwrap_or(start_line as i64) as u32;
-        let end_col = node.properties.get_int("col_end")
+        let end_col = node
+            .properties
+            .get_int("col_end")
             .or_else(|| node.properties.get_int("end_col"))
             .unwrap_or(0) as u32;
 
@@ -445,7 +471,8 @@ impl CodeGraphBackend {
         let end_line = end_line.saturating_sub(1);
 
         Ok(Location {
-            uri: Url::from_file_path(&path_str).map_err(|_| LspError::InvalidUri(path_str.clone()))?,
+            uri: Url::from_file_path(&path_str)
+                .map_err(|_| LspError::InvalidUri(path_str.clone()))?,
             range: Range {
                 start: Position {
                     line: start_line,
@@ -486,10 +513,14 @@ impl CodeGraphBackend {
         // Try to read from file
         if path.exists() {
             // Support both property name conventions
-            let start_line = node.properties.get_int("line_start")
+            let start_line = node
+                .properties
+                .get_int("line_start")
                 .or_else(|| node.properties.get_int("start_line"))
                 .unwrap_or(1) as usize;
-            let end_line = node.properties.get_int("line_end")
+            let end_line = node
+                .properties
+                .get_int("line_end")
                 .or_else(|| node.properties.get_int("end_line"))
                 .unwrap_or(start_line as i64) as usize;
 
@@ -507,8 +538,18 @@ impl CodeGraphBackend {
 
     /// Helper to get a string property from a node
     #[allow(dead_code)]
-    fn get_node_string_property(&self, graph: &CodeGraph, node_id: NodeId, key: &str) -> Option<String> {
-        graph.get_node(node_id).ok()?.properties.get_string(key).map(|s| s.to_string())
+    fn get_node_string_property(
+        &self,
+        graph: &CodeGraph,
+        node_id: NodeId,
+        key: &str,
+    ) -> Option<String> {
+        graph
+            .get_node(node_id)
+            .ok()?
+            .properties
+            .get_string(key)
+            .map(|s| s.to_string())
     }
 }
 
@@ -587,7 +628,7 @@ impl LanguageServer for CodeGraphBackend {
         self.client
             .log_message(
                 MessageType::INFO,
-                format!("Total files indexed: {}", total_indexed),
+                format!("Total files indexed: {total_indexed}"),
             )
             .await;
 
@@ -630,13 +671,13 @@ impl LanguageServer for CodeGraphBackend {
                     self.file_cache.insert(uri.clone(), file_info);
 
                     self.client
-                        .log_message(MessageType::INFO, format!("Indexed: {}", uri))
+                        .log_message(MessageType::INFO, format!("Indexed: {uri}"))
                         .await;
                 }
                 Err(e) => {
                     tracing::error!("Parse failed for {:?}: {}", path, e);
                     self.client
-                        .log_message(MessageType::ERROR, format!("Parse error in {}: {}", uri, e))
+                        .log_message(MessageType::ERROR, format!("Parse error in {uri}: {e}"))
                         .await;
                 }
             }
@@ -725,7 +766,10 @@ impl LanguageServer for CodeGraphBackend {
                 Ok(location) => return Ok(Some(GotoDefinitionResponse::Scalar(location))),
                 Err(e) => {
                     // Log the error but try to return the source location as fallback
-                    tracing::warn!("Failed to get definition location: {}, trying source node", e);
+                    tracing::warn!(
+                        "Failed to get definition location: {}, trying source node",
+                        e
+                    );
                     // Fall through to try source node
                 }
             }
@@ -805,26 +849,31 @@ impl LanguageServer for CodeGraphBackend {
         // Build hover content
         let name = node.properties.get_string("name").unwrap_or("").to_string();
         let kind = format!("{}", node.node_type);
-        let signature = node.properties.get_string("signature").unwrap_or("").to_string();
+        let signature = node
+            .properties
+            .get_string("signature")
+            .unwrap_or("")
+            .to_string();
         let doc = node.properties.get_string("doc").map(|s| s.to_string());
         let def_path = node.properties.get_string("path").unwrap_or("").to_string();
 
         // Count references
-        let ref_count = self.get_connected_edges(&graph, node_id, Direction::Incoming).len();
+        let ref_count = self
+            .get_connected_edges(&graph, node_id, Direction::Incoming)
+            .len();
 
-        let mut content = format!("**{}** `{}`", kind, name);
+        let mut content = format!("**{kind}** `{name}`");
 
         if !signature.is_empty() {
-            content.push_str(&format!("\n\n```\n{}\n```", signature));
+            content.push_str(&format!("\n\n```\n{signature}\n```"));
         }
 
         if let Some(doc) = doc {
-            content.push_str(&format!("\n\n{}", doc));
+            content.push_str(&format!("\n\n{doc}"));
         }
 
         content.push_str(&format!(
-            "\n\n---\n\n**Defined in:** {}\n**References:** {}",
-            def_path, ref_count
+            "\n\n---\n\n**Defined in:** {def_path}\n**References:** {ref_count}"
         ));
 
         Ok(Some(Hover {
@@ -922,7 +971,10 @@ impl LanguageServer for CodeGraphBackend {
             name,
             kind: SymbolKind::FUNCTION,
             tags: None,
-            detail: node.properties.get_string("signature").map(|s| s.to_string()),
+            detail: node
+                .properties
+                .get_string("signature")
+                .map(|s| s.to_string()),
             uri: location.uri,
             range: location.range,
             selection_range: location.range,
@@ -953,7 +1005,10 @@ impl LanguageServer for CodeGraphBackend {
                                 name,
                                 kind: SymbolKind::FUNCTION,
                                 tags: None,
-                                detail: node.properties.get_string("signature").map(|s| s.to_string()),
+                                detail: node
+                                    .properties
+                                    .get_string("signature")
+                                    .map(|s| s.to_string()),
                                 uri: location.uri.clone(),
                                 range: location.range,
                                 selection_range: location.range,
@@ -996,7 +1051,10 @@ impl LanguageServer for CodeGraphBackend {
                                 name,
                                 kind: SymbolKind::FUNCTION,
                                 tags: None,
-                                detail: node.properties.get_string("signature").map(|s| s.to_string()),
+                                detail: node
+                                    .properties
+                                    .get_string("signature")
+                                    .map(|s| s.to_string()),
                                 uri: location.uri.clone(),
                                 range: location.range,
                                 selection_range: location.range,
@@ -1016,44 +1074,55 @@ impl LanguageServer for CodeGraphBackend {
         }
     }
 
-    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<serde_json::Value>> {
+    async fn execute_command(
+        &self,
+        params: ExecuteCommandParams,
+    ) -> Result<Option<serde_json::Value>> {
         tracing::info!("Executing command: {}", params.command);
 
         match params.command.as_str() {
             "codegraph.getDependencyGraph" => {
-                let args = params.arguments.get(0).ok_or_else(|| {
+                let args = params.arguments.first().ok_or_else(|| {
                     tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
                 })?;
-                let params: crate::handlers::DependencyGraphParams = serde_json::from_value(args.clone())
-                    .map_err(|e| tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {}", e)))?;
+                let params: crate::handlers::DependencyGraphParams =
+                    serde_json::from_value(args.clone()).map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
                 let response = self.handle_get_dependency_graph(params).await?;
                 Ok(Some(serde_json::to_value(response).unwrap()))
             }
 
             "codegraph.getCallGraph" => {
-                let args = params.arguments.get(0).ok_or_else(|| {
+                let args = params.arguments.first().ok_or_else(|| {
                     tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
                 })?;
                 let params: crate::handlers::CallGraphParams = serde_json::from_value(args.clone())
-                    .map_err(|e| tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {}", e)))?;
+                    .map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
                 let response = self.handle_get_call_graph(params).await?;
                 Ok(Some(serde_json::to_value(response).unwrap()))
             }
 
             "codegraph.analyzeImpact" => {
-                let args = params.arguments.get(0).ok_or_else(|| {
+                let args = params.arguments.first().ok_or_else(|| {
                     tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
                 })?;
-                let params: crate::handlers::ImpactAnalysisParams = serde_json::from_value(args.clone())
-                    .map_err(|e| tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {}", e)))?;
+                let params: crate::handlers::ImpactAnalysisParams =
+                    serde_json::from_value(args.clone()).map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
                 let response = self.handle_analyze_impact(params).await?;
                 Ok(Some(serde_json::to_value(response).unwrap()))
             }
 
             "codegraph.getParserMetrics" => {
-                let response = self.handle_get_parser_metrics(crate::handlers::ParserMetricsParams {
-                    language: None,
-                }).await?;
+                let response = self
+                    .handle_get_parser_metrics(crate::handlers::ParserMetricsParams {
+                        language: None,
+                    })
+                    .await?;
                 Ok(Some(serde_json::to_value(response).unwrap()))
             }
 
@@ -1083,7 +1152,7 @@ impl LanguageServer for CodeGraphBackend {
                 self.client
                     .log_message(
                         MessageType::INFO,
-                        format!("Workspace reindexed: {} files", total_indexed)
+                        format!("Workspace reindexed: {total_indexed} files"),
                     )
                     .await;
 
@@ -1091,31 +1160,37 @@ impl LanguageServer for CodeGraphBackend {
             }
 
             "codegraph.getAIContext" => {
-                let args = params.arguments.get(0).ok_or_else(|| {
+                let args = params.arguments.first().ok_or_else(|| {
                     tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
                 })?;
                 let params: crate::handlers::AIContextParams = serde_json::from_value(args.clone())
-                    .map_err(|e| tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {}", e)))?;
+                    .map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
                 let response = self.handle_get_ai_context(params).await?;
                 Ok(Some(serde_json::to_value(response).unwrap()))
             }
 
             "codegraph.getNodeLocation" => {
-                let args = params.arguments.get(0).ok_or_else(|| {
+                let args = params.arguments.first().ok_or_else(|| {
                     tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
                 })?;
-                let params: crate::handlers::GetNodeLocationParams = serde_json::from_value(args.clone())
-                    .map_err(|e| tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {}", e)))?;
+                let params: crate::handlers::GetNodeLocationParams =
+                    serde_json::from_value(args.clone()).map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
                 let response = self.handle_get_node_location(params).await?;
                 Ok(Some(serde_json::to_value(response).unwrap()))
             }
 
             "codegraph.getWorkspaceSymbols" => {
-                let args = params.arguments.get(0).ok_or_else(|| {
+                let args = params.arguments.first().ok_or_else(|| {
                     tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
                 })?;
-                let params: crate::handlers::WorkspaceSymbolsParams = serde_json::from_value(args.clone())
-                    .map_err(|e| tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {}", e)))?;
+                let params: crate::handlers::WorkspaceSymbolsParams =
+                    serde_json::from_value(args.clone()).map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
                 let response = self.handle_get_workspace_symbols(params).await?;
                 Ok(Some(serde_json::to_value(response).unwrap()))
             }

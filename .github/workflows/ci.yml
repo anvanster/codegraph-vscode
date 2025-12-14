@@ -1,0 +1,176 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # TypeScript checks
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run compile
+
+      - name: Test
+        run: npm test
+
+  # Rust checks
+  rust:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Test
+        run: cargo test --all-features
+
+  # Build binaries for release
+  build-binaries:
+    name: Build Binary (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: codegraph-lsp
+            artifact: codegraph-lsp-linux-x64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary: codegraph-lsp
+            artifact: codegraph-lsp-darwin-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: codegraph-lsp
+            artifact: codegraph-lsp-darwin-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: codegraph-lsp.exe
+            artifact: codegraph-lsp-win32-x64.exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename binary
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.target }}/release/${{ matrix.binary }} artifacts/${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: artifacts/${{ matrix.artifact }}
+
+  # Package extension (only on main branch, after all checks pass)
+  package:
+    name: Package Extension
+    needs: [typescript, rust, build-binaries]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: bin/
+
+      - name: Move binaries to correct location
+        run: |
+          mkdir -p bin
+          mv bin/codegraph-lsp-linux-x64/codegraph-lsp-linux-x64 bin/
+          mv bin/codegraph-lsp-darwin-x64/codegraph-lsp-darwin-x64 bin/
+          mv bin/codegraph-lsp-darwin-arm64/codegraph-lsp-darwin-arm64 bin/
+          mv bin/codegraph-lsp-win32-x64.exe/codegraph-lsp-win32-x64.exe bin/
+          chmod +x bin/codegraph-lsp-*
+          ls -la bin/
+
+      - name: Compile TypeScript
+        run: npm run compile
+
+      - name: Package extension
+        run: npx vsce package --no-dependencies
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: codegraph-vsix
+          path: "*.vsix"

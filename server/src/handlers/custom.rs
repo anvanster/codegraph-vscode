@@ -10,28 +10,32 @@ use tower_lsp::lsp_types::{Position, Range, Url};
 /// Helper to get line position from node properties.
 /// Supports both property name conventions (line_start or start_line).
 fn get_line_start(node: &Node) -> u32 {
-    node.properties.get_int("line_start")
+    node.properties
+        .get_int("line_start")
         .or_else(|| node.properties.get_int("start_line"))
         .map(|v| v as u32)
         .unwrap_or(1)
 }
 
 fn get_line_end(node: &Node, default: u32) -> u32 {
-    node.properties.get_int("line_end")
+    node.properties
+        .get_int("line_end")
         .or_else(|| node.properties.get_int("end_line"))
         .map(|v| v as u32)
         .unwrap_or(default)
 }
 
 fn get_col_start(node: &Node) -> u32 {
-    node.properties.get_int("col_start")
+    node.properties
+        .get_int("col_start")
         .or_else(|| node.properties.get_int("start_col"))
         .map(|v| v as u32)
         .unwrap_or(0)
 }
 
 fn get_col_end(node: &Node) -> u32 {
-    node.properties.get_int("col_end")
+    node.properties
+        .get_int("col_end")
         .or_else(|| node.properties.get_int("end_col"))
         .map(|v| v as u32)
         .unwrap_or(0)
@@ -296,7 +300,10 @@ pub struct CallGraphResponse {
 }
 
 impl CodeGraphBackend {
-    pub async fn handle_get_call_graph(&self, params: CallGraphParams) -> Result<CallGraphResponse> {
+    pub async fn handle_get_call_graph(
+        &self,
+        params: CallGraphParams,
+    ) -> Result<CallGraphResponse> {
         let uri = Url::parse(&params.uri)
             .map_err(|_| tower_lsp::jsonrpc::Error::invalid_params("Invalid URI"))?;
 
@@ -338,7 +345,11 @@ impl CodeGraphBackend {
 
             if let Ok(node) = graph.get_node(current_id) {
                 let name = node.properties.get_string("name").unwrap_or("").to_string();
-                let signature = node.properties.get_string("signature").unwrap_or("").to_string();
+                let signature = node
+                    .properties
+                    .get_string("signature")
+                    .unwrap_or("")
+                    .to_string();
                 let language = node
                     .properties
                     .get_string("language")
@@ -346,10 +357,10 @@ impl CodeGraphBackend {
                     .to_string();
                 let node_path = node.properties.get_string("path").unwrap_or("").to_string();
 
-                let start_line = get_line_start(&node).saturating_sub(1);
-                let start_col = get_col_start(&node);
-                let end_line = get_line_end(&node, start_line + 2).saturating_sub(1);
-                let end_col = get_col_end(&node);
+                let start_line = get_line_start(node).saturating_sub(1);
+                let start_col = get_col_start(node);
+                let end_line = get_line_end(node, start_line + 2).saturating_sub(1);
+                let end_col = get_col_end(node);
 
                 let func_node = FunctionNode {
                     id: current_id.to_string(),
@@ -380,11 +391,7 @@ impl CodeGraphBackend {
 
                 // Collect edges based on direction
                 let collected_edges = Self::collect_edges_for_direction(
-                    &graph,
-                    current_id,
-                    dir_param,
-                    "callers",
-                    "callees",
+                    &graph, current_id, dir_param, "callers", "callees",
                 );
 
                 for (source_id, target_id, edge_type) in collected_edges {
@@ -512,15 +519,23 @@ impl CodeGraphBackend {
 
         for (source_id, _target_id, edge_type) in incoming_edges {
             if let Ok(ref_node) = graph.get_node(source_id) {
-                let ref_path = ref_node.properties.get_string("path").unwrap_or("").to_string();
-                let ref_name = ref_node.properties.get_string("name").unwrap_or("").to_string();
+                let ref_path = ref_node
+                    .properties
+                    .get_string("path")
+                    .unwrap_or("")
+                    .to_string();
+                let ref_name = ref_node
+                    .properties
+                    .get_string("name")
+                    .unwrap_or("")
+                    .to_string();
 
                 affected_files.insert(ref_path.clone());
 
-                let start_line = get_line_start(&ref_node).saturating_sub(1);
-                let start_col = get_col_start(&ref_node);
-                let end_line = get_line_end(&ref_node, start_line + 2).saturating_sub(1);
-                let end_col = get_col_end(&ref_node);
+                let start_line = get_line_start(ref_node).saturating_sub(1);
+                let start_col = get_col_start(ref_node);
+                let end_line = get_line_end(ref_node, start_line + 2).saturating_sub(1);
+                let end_col = get_col_end(ref_node);
 
                 let impact_type = match edge_type {
                     EdgeType::Calls => "caller",
@@ -592,7 +607,11 @@ impl CodeGraphBackend {
             for (source_id, _target_id, _edge_type) in incoming_edges {
                 if source_id != node_id && !visited.contains(&source_id) {
                     if let Ok(ref_node) = graph.get_node(source_id) {
-                        let ref_path = ref_node.properties.get_string("path").unwrap_or("").to_string();
+                        let ref_path = ref_node
+                            .properties
+                            .get_string("path")
+                            .unwrap_or("")
+                            .to_string();
 
                         if !affected_files.contains(&ref_path) {
                             let mut new_path = path_chain.clone();
@@ -684,7 +703,7 @@ impl CodeGraphBackend {
 
         let metrics: Vec<ParserMetric> = all_metrics
             .into_iter()
-            .filter(|(lang, _)| params.language.as_ref().map_or(true, |l| l == *lang))
+            .filter(|(lang, _)| params.language.as_ref().is_none_or(|l| l == *lang))
             .map(|(language, m)| ParserMetric {
                 language: language.to_string(),
                 files_attempted: m.files_attempted,

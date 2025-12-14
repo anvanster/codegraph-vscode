@@ -72,7 +72,10 @@ mod tests {
     fn test_lsp_error_display_file_not_indexed() {
         let path = PathBuf::from("/test/file.rs");
         let err = LspError::FileNotIndexed(path.clone());
-        assert_eq!(err.to_string(), format!("File not indexed: {}", path.display()));
+        assert_eq!(
+            err.to_string(),
+            format!("File not indexed: {}", path.display())
+        );
     }
 
     #[test]
@@ -114,7 +117,8 @@ mod tests {
 
     #[test]
     fn test_jsonrpc_error_conversion_file_not_indexed() {
-        let err: tower_lsp::jsonrpc::Error = LspError::FileNotIndexed(PathBuf::from("/test.rs")).into();
+        let err: tower_lsp::jsonrpc::Error =
+            LspError::FileNotIndexed(PathBuf::from("/test.rs")).into();
         assert_eq!(err.code, ErrorCode::InvalidParams);
         assert!(err.message.contains("File not indexed"));
     }
@@ -128,7 +132,8 @@ mod tests {
 
     #[test]
     fn test_jsonrpc_error_conversion_unsupported_language() {
-        let err: tower_lsp::jsonrpc::Error = LspError::UnsupportedLanguage("brainfuck".to_string()).into();
+        let err: tower_lsp::jsonrpc::Error =
+            LspError::UnsupportedLanguage("brainfuck".to_string()).into();
         assert_eq!(err.code, ErrorCode::InvalidParams);
     }
 
@@ -156,7 +161,7 @@ mod tests {
         let lsp_err: LspError = io_err.into();
 
         match lsp_err {
-            LspError::Io(_) => {},
+            LspError::Io(_) => {}
             _ => panic!("Expected LspError::Io"),
         }
     }
@@ -172,7 +177,11 @@ mod tests {
 
     #[test]
     fn test_lsp_result_type_ok() {
-        let result: LspResult<i32> = Ok(42);
+        fn returns_ok() -> LspResult<i32> {
+            Ok(42)
+        }
+        let result = returns_ok();
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);
     }
 

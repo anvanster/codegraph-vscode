@@ -13,34 +13,30 @@ impl CodeGraphBackend {
         match method {
             "codegraph/getDependencyGraph" => {
                 let params: DependencyGraphParams = serde_json::from_value(params)
-                    .map_err(|e| Error::invalid_params(format!("Invalid params: {}", e)))?;
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
                 let response = self.handle_get_dependency_graph(params).await?;
-                serde_json::to_value(response)
-                    .map_err(|_| Error::internal_error())
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
             }
 
             "codegraph/getCallGraph" => {
                 let params: CallGraphParams = serde_json::from_value(params)
-                    .map_err(|e| Error::invalid_params(format!("Invalid params: {}", e)))?;
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
                 let response = self.handle_get_call_graph(params).await?;
-                serde_json::to_value(response)
-                    .map_err(|_| Error::internal_error())
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
             }
 
             "codegraph/analyzeImpact" => {
                 let params: ImpactAnalysisParams = serde_json::from_value(params)
-                    .map_err(|e| Error::invalid_params(format!("Invalid params: {}", e)))?;
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
                 let response = self.handle_analyze_impact(params).await?;
-                serde_json::to_value(response)
-                    .map_err(|_| Error::internal_error())
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
             }
 
             "codegraph/getParserMetrics" => {
                 let params: ParserMetricsParams = serde_json::from_value(params)
-                    .map_err(|e| Error::invalid_params(format!("Invalid params: {}", e)))?;
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
                 let response = self.handle_get_parser_metrics(params).await?;
-                serde_json::to_value(response)
-                    .map_err(|_| Error::internal_error())
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
             }
 
             "codegraph/reindexWorkspace" => {
@@ -50,26 +46,23 @@ impl CodeGraphBackend {
 
             "codegraph/getAIContext" => {
                 let params: AIContextParams = serde_json::from_value(params)
-                    .map_err(|e| Error::invalid_params(format!("Invalid params: {}", e)))?;
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
                 let response = self.handle_get_ai_context(params).await?;
-                serde_json::to_value(response)
-                    .map_err(|_| Error::internal_error())
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
             }
 
             "codegraph/getNodeLocation" => {
                 let params: GetNodeLocationParams = serde_json::from_value(params)
-                    .map_err(|e| Error::invalid_params(format!("Invalid params: {}", e)))?;
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
                 let response = self.handle_get_node_location(params).await?;
-                serde_json::to_value(response)
-                    .map_err(|_| Error::internal_error())
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
             }
 
             "codegraph/getWorkspaceSymbols" => {
                 let params: WorkspaceSymbolsParams = serde_json::from_value(params)
-                    .map_err(|e| Error::invalid_params(format!("Invalid params: {}", e)))?;
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
                 let response = self.handle_get_workspace_symbols(params).await?;
-                serde_json::to_value(response)
-                    .map_err(|_| Error::internal_error())
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
             }
 
             _ => Err(Error::method_not_found()),
@@ -89,7 +82,10 @@ impl CodeGraphBackend {
         self.file_cache.clear();
 
         self.client
-            .log_message(tower_lsp::lsp_types::MessageType::INFO, "Workspace reindexed")
+            .log_message(
+                tower_lsp::lsp_types::MessageType::INFO,
+                "Workspace reindexed",
+            )
             .await;
 
         Ok(())

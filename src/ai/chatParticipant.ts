@@ -351,7 +351,7 @@ export class CodeGraphChatParticipant {
      * Provide follow-up suggestions after a response
      */
     private provideFollowups(
-        result: vscode.ChatResult,
+        _result: vscode.ChatResult,
         _context: vscode.ChatContext,
         _token: vscode.CancellationToken
     ): vscode.ChatFollowup[] {

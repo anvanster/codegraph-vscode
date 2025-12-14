@@ -1,0 +1,55 @@
+# Source files (compiled output is in out/)
+src/**
+!src/**/*.d.ts
+
+# Rust source (binary is pre-built)
+server/src/**
+server/Cargo.toml
+server/Cargo.lock
+server/target/**
+Cargo.toml
+Cargo.lock
+
+# Development files
+.vscode/**
+.github/**
+.claude/**
+.codemender/**
+*.vsix
+
+# Test files
+**/*.test.ts
+**/*.test.js
+**/*.test.d.ts
+**/test/**
+**/tests/**
+**/__tests__/**
+**/fixtures/**
+
+# Build artifacts and caches
+target/**
+node_modules/**
+.turbo/**
+logs/**
+
+# Documentation (except README, LICENSE, CHANGELOG)
+docs/**
+!docs/AI_TOOL_EXAMPLES.md
+CONTRIBUTING.md
+PROGRESS.md
+
+# Config files
+.eslintrc*
+.prettierrc*
+tsconfig.json
+vitest.config.*
+vsforge.config.json
+.gitignore
+
+# Scripts (not needed at runtime)
+scripts/**
+
+# Editor and OS files
+.DS_Store
+*.swp
+*.swo

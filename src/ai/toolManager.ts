@@ -585,7 +585,7 @@ export class CodeGraphToolManager {
             // Group by file
             const byFile = new Map<string, vscode.Location[]>();
             data.references.forEach(ref => {
-                if (!ref || !ref.uri) return;
+                if (!ref || !ref.uri) { return; }
                 const path = ref.uri.fsPath;
                 if (!byFile.has(path)) {
                     byFile.set(path, []);

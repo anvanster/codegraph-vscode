@@ -4,7 +4,7 @@ use codegraph::NodeId;
 use dashmap::DashMap;
 use lru::LruCache;
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tower_lsp::lsp_types::{Location, Range};
 
@@ -74,9 +74,9 @@ impl QueryCache {
     // ==========================================
 
     /// Get cached definition.
-    pub fn get_definition(&self, path: &PathBuf, line: u32, character: u32) -> Option<NodeId> {
+    pub fn get_definition(&self, path: &Path, line: u32, character: u32) -> Option<NodeId> {
         self.definitions
-            .get(&(path.clone(), line, character))
+            .get(&(path.to_path_buf(), line, character))
             .map(|v| *v)
     }
 
@@ -120,15 +120,11 @@ impl QueryCache {
     // ==========================================
 
     /// Get cached dependency graph.
-    pub fn get_dependency_graph(
-        &self,
-        path: &PathBuf,
-        depth: usize,
-    ) -> Option<DependencyGraphCache> {
+    pub fn get_dependency_graph(&self, path: &Path, depth: usize) -> Option<DependencyGraphCache> {
         self.dependency_graphs
             .lock()
             .ok()?
-            .get(&(path.clone(), depth))
+            .get(&(path.to_path_buf(), depth))
             .cloned()
     }
 
@@ -166,8 +162,7 @@ impl QueryCache {
     /// Invalidate all cache entries for a file.
     pub fn invalidate_file(&self, path: &PathBuf) {
         // Remove definition entries for this file
-        self.definitions
-            .retain(|(p, _, _), _| p != path);
+        self.definitions.retain(|(p, _, _), _| p != path);
 
         // Clear references cache (could be more selective)
         self.references.clear();
@@ -208,16 +203,8 @@ impl QueryCache {
         CacheStats {
             definitions_count: self.definitions.len(),
             references_count: self.references.len(),
-            call_hierarchies_count: self
-                .call_hierarchies
-                .lock()
-                .map(|g| g.len())
-                .unwrap_or(0),
-            dependency_graphs_count: self
-                .dependency_graphs
-                .lock()
-                .map(|g| g.len())
-                .unwrap_or(0),
+            call_hierarchies_count: self.call_hierarchies.lock().map(|g| g.len()).unwrap_or(0),
+            dependency_graphs_count: self.dependency_graphs.lock().map(|g| g.len()).unwrap_or(0),
             ai_contexts_count: self.ai_contexts.lock().map(|g| g.len()).unwrap_or(0),
         }
     }
@@ -248,7 +235,10 @@ mod tests {
             uri: Url::parse("file:///test.rs").unwrap(),
             range: Range {
                 start: tower_lsp::lsp_types::Position { line, character: 0 },
-                end: tower_lsp::lsp_types::Position { line, character: 10 },
+                end: tower_lsp::lsp_types::Position {
+                    line,
+                    character: 10,
+                },
             },
         }
     }
@@ -424,10 +414,7 @@ mod tests {
 
         let ai_cache = AIContextCache {
             primary_code: "fn test() {}".to_string(),
-            related_symbols: vec![
-                (1, "helper".to_string(), 0.9),
-                (2, "util".to_string(), 0.7),
-            ],
+            related_symbols: vec![(1, "helper".to_string(), 0.9), (2, "util".to_string(), 0.7)],
         };
 
         cache.set_ai_context(node_id, context_type.to_string(), ai_cache);
@@ -586,7 +573,7 @@ mod tests {
         for i in 0..10u64 {
             let cache = Arc::clone(&cache);
             let handle = thread::spawn(move || {
-                let path = PathBuf::from(format!("/test/file{}.rs", i));
+                let path = PathBuf::from(format!("/test/file{i}.rs"));
                 for j in 0..100u32 {
                     cache.set_definition(path.clone(), j, 0, (i * 100 + j as u64) as NodeId);
                 }

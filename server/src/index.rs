@@ -157,8 +157,7 @@ impl SymbolIndex {
 
         for (range, node_id) in positions.iter() {
             if range.contains(line, col) {
-                let size = ((range.end_line - range.start_line) as usize)
-                    * 10000
+                let size = ((range.end_line - range.start_line) as usize) * 10000
                     + (range.end_col - range.start_col) as usize;
 
                 match &best_match {
@@ -714,7 +713,7 @@ mod tests {
             end_col: 4,
         };
 
-        let debug_str = format!("{:?}", range);
+        let debug_str = format!("{range:?}");
         assert!(debug_str.contains("IndexRange"));
         assert!(debug_str.contains("start_line: 1"));
     }

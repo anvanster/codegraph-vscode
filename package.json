@@ -3,11 +3,11 @@
     "displayName": "CodeGraph",
     "description": "Cross-language code intelligence powered by graph analysis",
     "version": "0.1.0",
-    "publisher": "codegraph",
+    "publisher": "anvanster",
     "license": "Apache-2.0",
     "repository": {
         "type": "git",
-        "url": "https://github.com/codegraph/codegraph-vscode"
+        "url": "https://github.com/anvanster/codegraph-vscode"
     },
     "engines": {
         "vscode": "^1.90.0"

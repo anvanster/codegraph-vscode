@@ -84,14 +84,10 @@ impl ParserRegistry {
     }
 
     /// Parse a file using the appropriate parser.
-    pub fn parse_file(
-        &self,
-        path: &Path,
-        graph: &mut CodeGraph,
-    ) -> Result<FileInfo, ParserError> {
-        let parser = self
-            .parser_for_path(path)
-            .ok_or_else(|| ParserError::UnsupportedFeature(path.to_path_buf(), "Unsupported file type".to_string()))?;
+    pub fn parse_file(&self, path: &Path, graph: &mut CodeGraph) -> Result<FileInfo, ParserError> {
+        let parser = self.parser_for_path(path).ok_or_else(|| {
+            ParserError::UnsupportedFeature(path.to_path_buf(), "Unsupported file type".to_string())
+        })?;
 
         parser.parse_file(path, graph)
     }
@@ -103,9 +99,9 @@ impl ParserRegistry {
         path: &Path,
         graph: &mut CodeGraph,
     ) -> Result<FileInfo, ParserError> {
-        let parser = self
-            .parser_for_path(path)
-            .ok_or_else(|| ParserError::UnsupportedFeature(path.to_path_buf(), "Unsupported file type".to_string()))?;
+        let parser = self.parser_for_path(path).ok_or_else(|| {
+            ParserError::UnsupportedFeature(path.to_path_buf(), "Unsupported file type".to_string())
+        })?;
 
         parser.parse_source(source, path, graph)
     }
@@ -144,9 +140,9 @@ impl Default for ParserRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
-    use std::io::Write;
 
     #[test]
     fn test_parser_registry_new() {
@@ -207,20 +203,36 @@ mod tests {
     fn test_parser_for_path() {
         let registry = ParserRegistry::new();
 
-        assert!(registry.parser_for_path(&PathBuf::from("test.py")).is_some());
-        assert!(registry.parser_for_path(&PathBuf::from("test.rs")).is_some());
-        assert!(registry.parser_for_path(&PathBuf::from("test.ts")).is_some());
-        assert!(registry.parser_for_path(&PathBuf::from("test.js")).is_some());
-        assert!(registry.parser_for_path(&PathBuf::from("test.go")).is_some());
-        assert!(registry.parser_for_path(&PathBuf::from("test.txt")).is_none());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("test.py"))
+            .is_some());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("test.rs"))
+            .is_some());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("test.ts"))
+            .is_some());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("test.js"))
+            .is_some());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("test.go"))
+            .is_some());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("test.txt"))
+            .is_none());
     }
 
     #[test]
     fn test_parser_for_path_react_extensions() {
         let registry = ParserRegistry::new();
 
-        assert!(registry.parser_for_path(&PathBuf::from("component.tsx")).is_some());
-        assert!(registry.parser_for_path(&PathBuf::from("component.jsx")).is_some());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("component.tsx"))
+            .is_some());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("component.jsx"))
+            .is_some());
     }
 
     #[test]
