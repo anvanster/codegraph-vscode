@@ -197,6 +197,8 @@ dependencies = [
 [[package]]
 name = "codegraph"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1cd36812bf0203056260be348dcb39c154d56dbd6c2ebda061c8369f974c2c3"
 dependencies = [
  "log",
  "rocksdb",
@@ -209,6 +211,8 @@ dependencies = [
 [[package]]
 name = "codegraph-go"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5718c2203af479f7af08bc8e8d338cf8a863b29312552e20a6fc3a7e1ad0c9d2"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -246,6 +250,8 @@ dependencies = [
 [[package]]
 name = "codegraph-parser-api"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7d8478e9d4bd6191f9bbb3ef12814c8043c5ddab768ccb75e7d03a67b52cbbb"
 dependencies = [
  "codegraph",
  "serde",
@@ -255,6 +261,8 @@ dependencies = [
 [[package]]
 name = "codegraph-python"
 version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35df1ed7ec0eb27e7fd984d8ba4b590f804fa3a79316ffb6e092625582831d87"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -271,6 +279,8 @@ dependencies = [
 [[package]]
 name = "codegraph-rust"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "660518de4bec4cd8403468f96391ac8f9535b6a283be9cf58633c9f5842fb606"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -285,6 +295,8 @@ dependencies = [
 [[package]]
 name = "codegraph-typescript"
 version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54f08a6ca28dd1e9dc0390ed0abc9c9f02661e1371e8f1961759099551681a2e"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
