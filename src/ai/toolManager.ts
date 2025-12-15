@@ -6,6 +6,9 @@ import {
     ImpactAnalysisResponse,
     AIContextResponse,
     RelatedTestsResponse,
+    ComplexityResponse,
+    UnusedCodeResponse,
+    CouplingResponse,
 } from '../types';
 
 /**
@@ -468,6 +471,113 @@ export class CodeGraphToolManager {
             })
         );
 
+        // Tool 7: Analyze Complexity
+        this.disposables.push(
+            vscode.lm.registerTool('codegraph_analyze_complexity', {
+                invoke: async (options, token) => {
+                    const input = options.input as { uri: string; line?: number; threshold?: number; summary?: boolean };
+                    const { uri, line, threshold = 10, summary = false } = input;
+
+                    try {
+                        const response = await this.sendRequestWithRetry<ComplexityResponse>(
+                            'codegraph.analyzeComplexity',
+                            { uri, line, threshold, includeMetrics: true },
+                            token,
+                            { retries: 1 }
+                        );
+
+                        return new vscode.LanguageModelToolResult([
+                            new vscode.LanguageModelTextPart(this.formatComplexityAnalysis(response, summary))
+                        ]);
+                    } catch (error) {
+                        return this.handleToolError(error, 'complexity analysis', token);
+                    }
+                },
+                prepareInvocation: async (options, _token) => {
+                    const input = options.input as { uri: string; line?: number; threshold?: number };
+                    const { uri, line, threshold = 10 } = input;
+                    const fileName = vscode.Uri.parse(uri).path.split('/').pop();
+                    const lineInfo = line !== undefined ? ` at line ${line + 1}` : '';
+
+                    return {
+                        invocationMessage: `Analyzing complexity for ${fileName}${lineInfo} (threshold: ${threshold})...`
+                    };
+                }
+            })
+        );
+
+        // Tool 8: Find Unused Code
+        this.disposables.push(
+            vscode.lm.registerTool('codegraph_find_unused_code', {
+                invoke: async (options, token) => {
+                    const input = options.input as { uri?: string; scope?: 'file' | 'module' | 'workspace'; includeTests?: boolean; confidence?: number; summary?: boolean };
+                    const { uri, scope = 'file', includeTests = false, confidence = 0.7, summary = false } = input;
+
+                    try {
+                        const response = await this.sendRequestWithRetry<UnusedCodeResponse>(
+                            'codegraph.findUnusedCode',
+                            { uri, scope, includeTests, confidence },
+                            token,
+                            { retries: 1 }
+                        );
+
+                        return new vscode.LanguageModelToolResult([
+                            new vscode.LanguageModelTextPart(this.formatUnusedCode(response, summary))
+                        ]);
+                    } catch (error) {
+                        return this.handleToolError(error, 'unused code detection', token);
+                    }
+                },
+                prepareInvocation: async (options, _token) => {
+                    const input = options.input as { uri?: string; scope?: string };
+                    const { uri, scope = 'file' } = input;
+                    const fileName = uri ? vscode.Uri.parse(uri).path.split('/').pop() : 'workspace';
+
+                    return {
+                        invocationMessage: `Finding unused code in ${scope === 'workspace' ? 'workspace' : fileName}...`,
+                        confirmationMessages: scope === 'workspace' ? {
+                            title: 'Workspace-wide Unused Code Detection',
+                            message: 'Scanning the entire workspace for unused code may take a while on large codebases.'
+                        } : undefined
+                    };
+                }
+            })
+        );
+
+        // Tool 9: Analyze Coupling
+        this.disposables.push(
+            vscode.lm.registerTool('codegraph_analyze_coupling', {
+                invoke: async (options, token) => {
+                    const input = options.input as { uri: string; includeExternal?: boolean; depth?: number; summary?: boolean };
+                    const { uri, includeExternal = false, depth = 2, summary = false } = input;
+
+                    try {
+                        const response = await this.sendRequestWithRetry<CouplingResponse>(
+                            'codegraph.analyzeCoupling',
+                            { uri, includeExternal, depth },
+                            token,
+                            { retries: 1 }
+                        );
+
+                        return new vscode.LanguageModelToolResult([
+                            new vscode.LanguageModelTextPart(this.formatCouplingAnalysis(response, summary))
+                        ]);
+                    } catch (error) {
+                        return this.handleToolError(error, 'coupling analysis', token);
+                    }
+                },
+                prepareInvocation: async (options, _token) => {
+                    const input = options.input as { uri: string };
+                    const { uri } = input;
+                    const fileName = vscode.Uri.parse(uri).path.split('/').pop();
+
+                    return {
+                        invocationMessage: `Analyzing coupling and cohesion for ${fileName}...`
+                    };
+                }
+            })
+        );
+
         console.log(`[CodeGraph] Registered ${this.disposables.length} Language Model tools`);
     }
 
@@ -787,6 +897,171 @@ export class CodeGraphToolManager {
 
         if (!data.hovers?.length && !data.definitions?.length && !data.references?.length && !data.referencesIncluded) {
             output += 'No symbol information available at this location.\n';
+        }
+
+        return output;
+    }
+
+    /**
+     * Format complexity analysis for AI consumption
+     */
+    private formatComplexityAnalysis(response: ComplexityResponse, summary = false): string {
+        const { functions, fileSummary, recommendations } = response;
+        const shouldSummarize = summary || functions.length > 30;
+
+        let output = shouldSummarize ? '# Complexity Analysis (summary)\n\n' : '# Complexity Analysis\n\n';
+
+        // File summary
+        output += `## File Summary\n`;
+        output += `- **Overall Grade**: ${fileSummary.overallGrade}\n`;
+        output += `- Total Functions: ${fileSummary.totalFunctions}\n`;
+        output += `- Average Complexity: ${fileSummary.averageComplexity.toFixed(1)}\n`;
+        output += `- Max Complexity: ${fileSummary.maxComplexity}\n`;
+        output += `- Functions Above Threshold: ${fileSummary.functionsAboveThreshold}\n\n`;
+
+        // Function details
+        const functionLimit = shouldSummarize ? 10 : functions.length;
+        if (functions.length > 0) {
+            output += `## Functions (${functions.length})\n`;
+            output += 'Sorted by complexity (highest first):\n\n';
+
+            functions.slice(0, functionLimit).forEach((func, i) => {
+                const gradeEmoji = func.grade === 'A' ? '🟢' : func.grade === 'B' ? '🟡' : func.grade === 'C' ? '🟠' : '🔴';
+                output += `### ${i + 1}. ${func.name} ${gradeEmoji}\n`;
+                output += `- **Complexity**: ${func.complexity} (Grade: ${func.grade})\n`;
+                output += `- Location: ${func.location.uri}:${func.location.range.start.line + 1}\n`;
+                output += `- Branches: ${func.details.branches}, Loops: ${func.details.loops}, Conditions: ${func.details.conditions}\n`;
+                output += `- Nesting Depth: ${func.details.nestingDepth}, Lines: ${func.details.linesOfCode}\n\n`;
+            });
+
+            if (functions.length > functionLimit) {
+                output += `... and ${functions.length - functionLimit} more functions\n\n`;
+            }
+        }
+
+        // Recommendations
+        if (recommendations.length > 0) {
+            output += `## Recommendations\n`;
+            recommendations.forEach(rec => {
+                output += `- ${rec}\n`;
+            });
+        }
+
+        return output;
+    }
+
+    /**
+     * Format unused code detection for AI consumption
+     */
+    private formatUnusedCode(response: UnusedCodeResponse, summary = false): string {
+        const { unusedItems, summary: unusedSummary } = response;
+        const shouldSummarize = summary || unusedItems.length > 30;
+
+        let output = shouldSummarize ? '# Unused Code Detection (summary)\n\n' : '# Unused Code Detection\n\n';
+
+        // Summary
+        output += `## Summary\n`;
+        output += `- Total Unused Items: ${unusedSummary.totalItems}\n`;
+        output += `- Functions: ${unusedSummary.byType.functions}\n`;
+        output += `- Classes: ${unusedSummary.byType.classes}\n`;
+        output += `- Imports: ${unusedSummary.byType.imports}\n`;
+        output += `- Variables: ${unusedSummary.byType.variables}\n`;
+        output += `- Safe Deletions: ${unusedSummary.safeDeletions}\n`;
+        output += `- Estimated Removable Lines: ${unusedSummary.estimatedLinesRemovable}\n\n`;
+
+        if (unusedItems.length === 0) {
+            output += '✅ No unused code detected!\n';
+            return output;
+        }
+
+        // Unused items
+        const itemLimit = shouldSummarize ? 15 : unusedItems.length;
+        output += `## Unused Items (${unusedItems.length})\n`;
+        output += 'Sorted by confidence (highest first):\n\n';
+
+        unusedItems.slice(0, itemLimit).forEach((item, i) => {
+            const confidenceEmoji = item.confidence >= 0.9 ? '🔴' : item.confidence >= 0.7 ? '🟠' : '🟡';
+            const safeEmoji = item.safeToRemove ? '✅' : '⚠️';
+            output += `### ${i + 1}. ${item.name} ${confidenceEmoji}\n`;
+            output += `- Type: ${item.itemType}\n`;
+            output += `- Confidence: ${(item.confidence * 100).toFixed(0)}%\n`;
+            output += `- Location: ${item.location.uri}:${item.location.range.start.line + 1}\n`;
+            output += `- Reason: ${item.reason}\n`;
+            output += `- Safe to Remove: ${safeEmoji} ${item.safeToRemove ? 'Yes' : 'No - review first'}\n\n`;
+        });
+
+        if (unusedItems.length > itemLimit) {
+            output += `... and ${unusedItems.length - itemLimit} more items\n`;
+        }
+
+        return output;
+    }
+
+    /**
+     * Format coupling analysis for AI consumption
+     */
+    private formatCouplingAnalysis(response: CouplingResponse, summary = false): string {
+        const { coupling, cohesion, violations, recommendations } = response;
+
+        let output = summary ? '# Coupling Analysis (summary)\n\n' : '# Coupling Analysis\n\n';
+
+        // Coupling metrics
+        output += `## Coupling Metrics\n`;
+        const stabilityEmoji = coupling.instability < 0.3 ? '🟢 Stable' : coupling.instability < 0.7 ? '🟡 Moderate' : '🔴 Unstable';
+        output += `- **Instability**: ${coupling.instability.toFixed(2)} (${stabilityEmoji})\n`;
+        output += `- Afferent (incoming): ${coupling.afferent} modules depend on this\n`;
+        output += `- Efferent (outgoing): ${coupling.efferent} dependencies\n\n`;
+
+        if (coupling.dependents.length > 0) {
+            const depLimit = summary ? 5 : coupling.dependents.length;
+            output += `### Dependents (${coupling.dependents.length})\n`;
+            output += 'Modules that depend on this:\n';
+            coupling.dependents.slice(0, depLimit).forEach(dep => {
+                output += `- ${dep}\n`;
+            });
+            if (coupling.dependents.length > depLimit) {
+                output += `... and ${coupling.dependents.length - depLimit} more\n`;
+            }
+            output += '\n';
+        }
+
+        if (coupling.dependencies.length > 0) {
+            const depLimit = summary ? 5 : coupling.dependencies.length;
+            output += `### Dependencies (${coupling.dependencies.length})\n`;
+            output += 'Modules this depends on:\n';
+            coupling.dependencies.slice(0, depLimit).forEach(dep => {
+                output += `- ${dep}\n`;
+            });
+            if (coupling.dependencies.length > depLimit) {
+                output += `... and ${coupling.dependencies.length - depLimit} more\n`;
+            }
+            output += '\n';
+        }
+
+        // Cohesion metrics
+        output += `## Cohesion Metrics\n`;
+        const cohesionEmoji = cohesion.score >= 0.7 ? '🟢 High' : cohesion.score >= 0.4 ? '🟡 Medium' : '🔴 Low';
+        output += `- **Cohesion Score**: ${cohesion.score.toFixed(2)} (${cohesionEmoji})\n`;
+        output += `- Cohesion Type: ${cohesion.cohesionType}\n`;
+        output += `- Internal Reference Ratio: ${(cohesion.internalReferenceRatio * 100).toFixed(0)}%\n\n`;
+
+        // Violations
+        if (violations.length > 0) {
+            output += `## Architecture Violations (${violations.length})\n`;
+            violations.forEach(violation => {
+                const severityEmoji = violation.severity === 'error' ? '🔴' : violation.severity === 'warning' ? '🟡' : '🔵';
+                output += `${severityEmoji} **${violation.violationType}**\n`;
+                output += `  ${violation.description}\n`;
+                output += `  💡 ${violation.suggestion}\n\n`;
+            });
+        }
+
+        // Recommendations
+        if (recommendations.length > 0) {
+            output += `## Recommendations\n`;
+            recommendations.forEach(rec => {
+                output += `- ${rec}\n`;
+            });
         }
 
         return output;

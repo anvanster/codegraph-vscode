@@ -72,6 +72,27 @@ impl CodeGraphBackend {
                 serde_json::to_value(response).map_err(|_| Error::internal_error())
             }
 
+            "codegraph/analyzeComplexity" => {
+                let params: ComplexityParams = serde_json::from_value(params)
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
+                let response = self.handle_analyze_complexity(params).await?;
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
+            }
+
+            "codegraph/findUnusedCode" => {
+                let params: UnusedCodeParams = serde_json::from_value(params)
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
+                let response = self.handle_find_unused_code(params).await?;
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
+            }
+
+            "codegraph/analyzeCoupling" => {
+                let params: CouplingParams = serde_json::from_value(params)
+                    .map_err(|e| Error::invalid_params(format!("Invalid params: {e}")))?;
+                let response = self.handle_analyze_coupling(params).await?;
+                serde_json::to_value(response).map_err(|_| Error::internal_error())
+            }
+
             _ => Err(Error::method_not_found()),
         }
     }

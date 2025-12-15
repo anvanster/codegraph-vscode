@@ -597,6 +597,9 @@ impl LanguageServer for CodeGraphBackend {
                         "codegraph.findRelatedTests".to_string(),
                         "codegraph.getNodeLocation".to_string(),
                         "codegraph.getWorkspaceSymbols".to_string(),
+                        "codegraph.analyzeComplexity".to_string(),
+                        "codegraph.findUnusedCode".to_string(),
+                        "codegraph.analyzeCoupling".to_string(),
                     ],
                     work_done_progress_options: WorkDoneProgressOptions::default(),
                 }),
@@ -1205,6 +1208,42 @@ impl LanguageServer for CodeGraphBackend {
                         tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
                     })?;
                 let response = self.handle_get_workspace_symbols(params).await?;
+                Ok(Some(serde_json::to_value(response).unwrap()))
+            }
+
+            "codegraph.analyzeComplexity" => {
+                let args = params.arguments.first().ok_or_else(|| {
+                    tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
+                })?;
+                let params: crate::handlers::ComplexityParams =
+                    serde_json::from_value(args.clone()).map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
+                let response = self.handle_analyze_complexity(params).await?;
+                Ok(Some(serde_json::to_value(response).unwrap()))
+            }
+
+            "codegraph.findUnusedCode" => {
+                let args = params.arguments.first().ok_or_else(|| {
+                    tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
+                })?;
+                let params: crate::handlers::UnusedCodeParams =
+                    serde_json::from_value(args.clone()).map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
+                let response = self.handle_find_unused_code(params).await?;
+                Ok(Some(serde_json::to_value(response).unwrap()))
+            }
+
+            "codegraph.analyzeCoupling" => {
+                let args = params.arguments.first().ok_or_else(|| {
+                    tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
+                })?;
+                let params: crate::handlers::CouplingParams =
+                    serde_json::from_value(args.clone()).map_err(|e| {
+                        tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
+                    })?;
+                let response = self.handle_analyze_coupling(params).await?;
                 Ok(Some(serde_json::to_value(response).unwrap()))
             }
 

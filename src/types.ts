@@ -242,3 +242,126 @@ export interface GraphData {
     nodes: GraphNode[];
     edges: GraphEdge[];
 }
+
+// ==========================================
+// Code Metrics Types
+// ==========================================
+
+export interface ComplexityParams {
+    uri: string;
+    line?: number;
+    threshold?: number;
+    includeMetrics?: boolean;
+}
+
+export interface ComplexityDetails {
+    branches: number;
+    loops: number;
+    conditions: number;
+    nestingDepth: number;
+    linesOfCode: number;
+}
+
+export interface LocationInfo {
+    uri: string;
+    range: Range;
+}
+
+export interface FunctionComplexity {
+    name: string;
+    complexity: number;
+    grade: string;
+    location: LocationInfo;
+    details: ComplexityDetails;
+}
+
+export interface FileSummary {
+    totalFunctions: number;
+    averageComplexity: number;
+    maxComplexity: number;
+    functionsAboveThreshold: number;
+    overallGrade: string;
+}
+
+export interface ComplexityResponse {
+    functions: FunctionComplexity[];
+    fileSummary: FileSummary;
+    recommendations: string[];
+}
+
+// ==========================================
+// Unused Code Detection Types
+// ==========================================
+
+export interface UnusedCodeParams {
+    uri?: string;
+    scope: 'file' | 'module' | 'workspace';
+    includeTests?: boolean;
+    confidence?: number;
+}
+
+export interface UnusedItem {
+    itemType: string;
+    name: string;
+    location: LocationInfo;
+    confidence: number;
+    reason: string;
+    safeToRemove: boolean;
+}
+
+export interface UnusedByType {
+    functions: number;
+    classes: number;
+    imports: number;
+    variables: number;
+}
+
+export interface UnusedSummary {
+    totalItems: number;
+    byType: UnusedByType;
+    safeDeletions: number;
+    estimatedLinesRemovable: number;
+}
+
+export interface UnusedCodeResponse {
+    unusedItems: UnusedItem[];
+    summary: UnusedSummary;
+}
+
+// ==========================================
+// Coupling Analysis Types
+// ==========================================
+
+export interface CouplingParams {
+    uri: string;
+    includeExternal?: boolean;
+    depth?: number;
+}
+
+export interface CouplingMetrics {
+    afferent: number;
+    efferent: number;
+    instability: number;
+    dependents: string[];
+    dependencies: string[];
+}
+
+export interface CohesionMetrics {
+    score: number;
+    cohesionType: string;
+    internalReferenceRatio: number;
+}
+
+export interface ArchViolation {
+    violationType: string;
+    severity: string;
+    description: string;
+    suggestion: string;
+}
+
+export interface CouplingResponse {
+    coupling: CouplingMetrics;
+    cohesion: CohesionMetrics;
+    violations: ArchViolation[];
+    recommendations: string[];
+}

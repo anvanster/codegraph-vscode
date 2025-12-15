@@ -30,11 +30,11 @@ lru = "0.12"
 
 # CodeGraph ecosystem (crates.io)
 codegraph = "0.1.1"
-codegraph-parser-api = "0.1.1"
-codegraph-python = "0.2.1"
-codegraph-rust = "0.1.0"
-codegraph-typescript = "0.2.1"
-codegraph-go = "0.1.1"
+codegraph-parser-api = "0.2.0"
+codegraph-python = "0.3.0"
+codegraph-rust = "0.1.1"
+codegraph-typescript = "0.3.0"
+codegraph-go = "0.1.2"
 
 [profile.release]
 opt-level = 3
