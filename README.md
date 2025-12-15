@@ -80,7 +80,7 @@ In any VS Code AI chat, mention `@codegraph` to get code intelligence:
 
 ### Language Model Tools
 
-CodeGraph registers 6 tools that AI agents can use autonomously:
+CodeGraph registers 9 tools that AI agents can use autonomously:
 
 | Tool | Purpose |
 |------|---------|
@@ -90,6 +90,9 @@ CodeGraph registers 6 tools that AI agents can use autonomously:
 | `codegraph_get_ai_context` | Get intent-aware code context |
 | `codegraph_find_related_tests` | Discover tests for a code location |
 | `codegraph_get_symbol_info` | Get symbol metadata and usage |
+| `codegraph_analyze_complexity` | Measure cyclomatic and cognitive complexity |
+| `codegraph_find_unused_code` | Detect dead code for cleanup |
+| `codegraph_analyze_coupling` | Analyze module coupling and cohesion |
 
 See [AI_TOOL_EXAMPLES.md](docs/AI_TOOL_EXAMPLES.md) for detailed usage examples and best practices.
 

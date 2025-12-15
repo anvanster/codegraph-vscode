@@ -2,7 +2,7 @@
     "name": "codegraph",
     "displayName": "CodeGraph",
     "description": "Cross-language code intelligence powered by graph analysis",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "publisher": "aStudioPlus",
     "license": "Apache-2.0",
     "repository": {
@@ -490,6 +490,135 @@
                     "required": [
                         "uri",
                         "line"
+                    ]
+                }
+            },
+            {
+                "name": "codegraph_analyze_complexity",
+                "displayName": "Analyze Complexity",
+                "description": "Analyze cyclomatic and cognitive complexity of code",
+                "modelDescription": "Use this tool to measure code complexity. Returns cyclomatic complexity, cognitive complexity, and other metrics. Helps identify code that may need refactoring due to high complexity. Can analyze a specific function (by line) or an entire file.",
+                "canBeReferencedInPrompt": true,
+                "toolReferenceName": "complexity",
+                "userDescription": "Analyzes code complexity metrics to identify areas needing refactoring",
+                "tags": [
+                    "code-analysis",
+                    "complexity",
+                    "quality"
+                ],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "The file URI to analyze"
+                        },
+                        "line": {
+                            "type": "number",
+                            "description": "Optional line number to analyze a specific function (0-indexed)"
+                        },
+                        "threshold": {
+                            "type": "number",
+                            "description": "Complexity threshold for flagging (default: 10)",
+                            "default": 10
+                        },
+                        "summary": {
+                            "type": "boolean",
+                            "description": "Return a condensed summary",
+                            "default": false
+                        }
+                    },
+                    "required": [
+                        "uri"
+                    ]
+                }
+            },
+            {
+                "name": "codegraph_find_unused_code",
+                "displayName": "Find Unused Code",
+                "description": "Detect unused functions, variables, and imports in the codebase",
+                "modelDescription": "Use this tool to find dead code that can be safely removed. Returns unused symbols with confidence scores. Can scan a single file, module, or entire workspace. Useful for code cleanup and reducing maintenance burden.",
+                "canBeReferencedInPrompt": true,
+                "toolReferenceName": "unused_code",
+                "userDescription": "Finds unused code that can be safely removed from your codebase",
+                "tags": [
+                    "code-analysis",
+                    "cleanup",
+                    "quality"
+                ],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "The file URI to analyze (optional for workspace scope)"
+                        },
+                        "scope": {
+                            "type": "string",
+                            "enum": [
+                                "file",
+                                "module",
+                                "workspace"
+                            ],
+                            "description": "Scope of analysis: 'file', 'module', or 'workspace'",
+                            "default": "file"
+                        },
+                        "includeTests": {
+                            "type": "boolean",
+                            "description": "Whether to include test files in analysis",
+                            "default": false
+                        },
+                        "confidence": {
+                            "type": "number",
+                            "description": "Minimum confidence threshold (0-1) for reporting unused code",
+                            "default": 0.7
+                        },
+                        "summary": {
+                            "type": "boolean",
+                            "description": "Return a condensed summary",
+                            "default": false
+                        }
+                    }
+                }
+            },
+            {
+                "name": "codegraph_analyze_coupling",
+                "displayName": "Analyze Coupling",
+                "description": "Analyze module coupling and cohesion metrics",
+                "modelDescription": "Use this tool to understand how tightly coupled modules are. Returns afferent coupling (incoming dependencies), efferent coupling (outgoing dependencies), and instability metrics. Helps identify modules that may need better abstraction or decoupling.",
+                "canBeReferencedInPrompt": true,
+                "toolReferenceName": "coupling",
+                "userDescription": "Analyzes module coupling and cohesion for better architecture",
+                "tags": [
+                    "code-analysis",
+                    "architecture",
+                    "quality"
+                ],
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "uri": {
+                            "type": "string",
+                            "description": "The file URI to analyze"
+                        },
+                        "includeExternal": {
+                            "type": "boolean",
+                            "description": "Whether to include external dependencies in analysis",
+                            "default": false
+                        },
+                        "depth": {
+                            "type": "number",
+                            "description": "Depth of dependency analysis",
+                            "default": 2
+                        },
+                        "summary": {
+                            "type": "boolean",
+                            "description": "Return a condensed summary",
+                            "default": false
+                        }
+                    },
+                    "required": [
+                        "uri"
                     ]
                 }
             }

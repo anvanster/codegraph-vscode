@@ -2,11 +2,11 @@
 
 ## Overview
 
-CodeGraph now exposes 6 Language Model Tools that enable AI agents (Claude, GitHub Copilot, etc.) to autonomously discover and use CodeGraph capabilities through VS Code's Language Model API.
+CodeGraph now exposes 9 Language Model Tools that enable AI agents (Claude, GitHub Copilot, etc.) to autonomously discover and use CodeGraph capabilities through VS Code's Language Model API.
 
 ## Implementation Status
 
-✅ **COMPLETED** - All 6 tools implemented and registered
+✅ **COMPLETED** - All 9 tools implemented and registered
 
 ## Tools Implemented
 
@@ -108,6 +108,7 @@ CodeGraph now exposes 6 Language Model Tools that enable AI agents (Claude, GitH
 - `uri` (required): File URI containing the symbol
 - `line` (required): Line number of the symbol (0-indexed)
 - `character` (optional, default: 0): Character position
+- `includeReferences` (optional, default: false): Include all references (can be slow)
 
 **Output Format**: Markdown with documentation, type info, definition locations, and references
 
@@ -115,6 +116,61 @@ CodeGraph now exposes 6 Language Model Tools that enable AI agents (Claude, GitH
 - Quick symbol information lookup
 - Understanding symbol usage patterns
 - Finding all references to a symbol
+
+---
+
+### 7. `codegraph_analyze_complexity`
+**Purpose**: Analyze cyclomatic and cognitive complexity of code
+
+**Input Parameters**:
+- `uri` (required): File URI to analyze
+- `line` (optional): Line number to analyze a specific function (0-indexed)
+- `threshold` (optional, default: 10): Complexity threshold for flagging
+- `summary` (optional, default: false): Return condensed summary
+
+**Output Format**: Markdown with complexity metrics, function rankings, and improvement suggestions
+
+**Use Cases**:
+- Identifying code that needs refactoring
+- Measuring code quality metrics
+- Finding overly complex functions
+
+---
+
+### 8. `codegraph_find_unused_code`
+**Purpose**: Detect unused functions, variables, and imports in the codebase
+
+**Input Parameters**:
+- `uri` (optional): File URI to analyze (optional for workspace scope)
+- `scope` (optional, default: 'file'): 'file', 'module', or 'workspace'
+- `includeTests` (optional, default: false): Include test files in analysis
+- `confidence` (optional, default: 0.7): Minimum confidence threshold (0-1)
+- `summary` (optional, default: false): Return condensed summary
+
+**Output Format**: Markdown with unused symbols, confidence scores, and safe removal recommendations
+
+**Use Cases**:
+- Code cleanup and maintenance
+- Reducing codebase size
+- Finding dead code after refactoring
+
+---
+
+### 9. `codegraph_analyze_coupling`
+**Purpose**: Analyze module coupling and cohesion metrics
+
+**Input Parameters**:
+- `uri` (required): File URI to analyze
+- `includeExternal` (optional, default: false): Include external dependencies
+- `depth` (optional, default: 2): Depth of dependency analysis
+- `summary` (optional, default: false): Return condensed summary
+
+**Output Format**: Markdown with afferent/efferent coupling, instability metrics, and architecture recommendations
+
+**Use Cases**:
+- Understanding module dependencies
+- Identifying tightly coupled code
+- Planning refactoring for better architecture
 
 ---
 
@@ -163,7 +219,7 @@ src/extension.ts         # MODIFIED - Register tools on activation
 ```typescript
 export class CodeGraphToolManager {
     registerTools(): void {
-        // Register 6 tools with vscode.lm.registerTool()
+        // Register 9 tools with vscode.lm.registerTool()
         // Each tool has:
         // - invoke: async handler that calls LSP server
         // - prepareInvocation: progress message for users
@@ -193,7 +249,7 @@ export async function activate(context: vscode.ExtensionContext) {
   },
   "contributes": {
     "languageModelTools": [
-      // 6 tool definitions with JSON schemas
+      // 9 tool definitions with JSON schemas
     ]
   }
 }
@@ -219,11 +275,11 @@ export async function activate(context: vscode.ExtensionContext) {
 3. **Install in VS Code**:
    - Open Extensions view
    - Click "..." menu → "Install from VSIX"
-   - Select `codegraph-0.1.0.vsix`
+   - Select `codegraph-0.2.0.vsix`
 
 4. **Verify Tool Registration**:
    - Open Developer Tools (Help → Toggle Developer Tools)
-   - Console should show: `[CodeGraph] Registered 6 Language Model tools`
+   - Console should show: `[CodeGraph] Registered 9 Language Model tools`
 
 5. **Test with AI Agent** (if Claude Code or GitHub Copilot installed):
    - Open a source file
@@ -310,7 +366,7 @@ AI: [Shows call hierarchy with links]
 │                       │                                      │
 │  ┌────────────────────▼─────────────────────────────────┐  │
 │  │         CodeGraph Tool Manager                       │  │
-│  │  - Registers 6 tools                                 │  │
+│  │  - Registers 9 tools                                 │  │
 │  │  - Validates inputs                                  │  │
 │  │  - Formats responses                                 │  │
 │  └────────────────────┬─────────────────────────────────┘  │
@@ -327,6 +383,9 @@ AI: [Shows call hierarchy with links]
 │  - Call graph analysis                                       │
 │  - Impact analysis                                           │
 │  - AI context generation                                     │
+│  - Complexity analysis                                       │
+│  - Unused code detection                                     │
+│  - Coupling analysis                                         │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -344,6 +403,6 @@ AI: [Shows call hierarchy with links]
 
 ## Conclusion
 
-The Language Model Tools implementation enables **true autonomous AI agent integration** for CodeGraph. AI agents can now discover and use all 6 CodeGraph capabilities without any user interaction, making CodeGraph a first-class citizen in the AI-powered development workflow.
+The Language Model Tools implementation enables **true autonomous AI agent integration** for CodeGraph. AI agents can now discover and use all 9 CodeGraph capabilities without any user interaction, making CodeGraph a first-class citizen in the AI-powered development workflow.
 
 This implementation fulfills the primary goal: **"This extension will provide context to AI agents without user interaction and agents will retrieve context autonomously."**
