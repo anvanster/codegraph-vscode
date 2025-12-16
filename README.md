@@ -42,7 +42,7 @@ CodeGraph provides tools for AI assistants (GitHub Copilot, Claude, etc.) to und
 - **Intent-aware context** — Get relevant code based on what you're trying to do (explain, modify, debug, test)
 
 ### 🌐 Multi-Language Support
-Works with **TypeScript**, **JavaScript**, **Python**, **Rust**, and **Go** in the same project.
+Works with **TypeScript**, **JavaScript**, **Python**, **Rust**, **Go**, and **C** in the same project.
 
 ---
 

@@ -1,6 +1,7 @@
 //! Parser Registry - Manages all language parsers implementing the CodeParser trait.
 
 use codegraph::CodeGraph;
+use codegraph_c::CParser;
 use codegraph_go::GoParser;
 use codegraph_parser_api::{CodeParser, FileInfo, ParserConfig, ParserError, ParserMetrics};
 use codegraph_python::PythonParser;
@@ -15,6 +16,7 @@ pub struct ParserRegistry {
     rust: Arc<RustParser>,
     typescript: Arc<TypeScriptParser>,
     go: Arc<GoParser>,
+    c: Arc<CParser>,
 }
 
 impl ParserRegistry {
@@ -29,7 +31,8 @@ impl ParserRegistry {
             python: Arc::new(PythonParser::with_config(config.clone())),
             rust: Arc::new(RustParser::with_config(config.clone())),
             typescript: Arc::new(TypeScriptParser::with_config(config.clone())),
-            go: Arc::new(GoParser::with_config(config)),
+            go: Arc::new(GoParser::with_config(config.clone())),
+            c: Arc::new(CParser::with_config(config)),
         }
     }
 
@@ -42,17 +45,19 @@ impl ParserRegistry {
                 Some(self.typescript.clone())
             }
             "go" => Some(self.go.clone()),
+            "c" => Some(self.c.clone()),
             _ => None,
         }
     }
 
     /// Find appropriate parser for a file path.
     pub fn parser_for_path(&self, path: &Path) -> Option<Arc<dyn CodeParser>> {
-        let parsers: [Arc<dyn CodeParser>; 4] = [
+        let parsers: [Arc<dyn CodeParser>; 5] = [
             self.python.clone(),
             self.rust.clone(),
             self.typescript.clone(),
             self.go.clone(),
+            self.c.clone(),
         ];
 
         parsers.into_iter().find(|p| p.can_parse(path))
@@ -65,6 +70,7 @@ impl ParserRegistry {
         extensions.extend(self.rust.file_extensions().iter().copied());
         extensions.extend(self.typescript.file_extensions().iter().copied());
         extensions.extend(self.go.file_extensions().iter().copied());
+        extensions.extend(self.c.file_extensions().iter().copied());
         extensions
     }
 
@@ -75,6 +81,7 @@ impl ParserRegistry {
             ("rust", self.rust.metrics()),
             ("typescript", self.typescript.metrics()),
             ("go", self.go.metrics()),
+            ("c", self.c.metrics()),
         ]
     }
 
@@ -125,6 +132,8 @@ impl ParserRegistry {
             }
         } else if self.go.can_parse(path) {
             Some("go")
+        } else if self.c.can_parse(path) {
+            Some("c")
         } else {
             None
         }
@@ -147,11 +156,12 @@ mod tests {
     #[test]
     fn test_parser_registry_new() {
         let registry = ParserRegistry::new();
-        // Should have parsers for all four languages
+        // Should have parsers for all five languages
         assert!(registry.get_parser("python").is_some());
         assert!(registry.get_parser("rust").is_some());
         assert!(registry.get_parser("typescript").is_some());
         assert!(registry.get_parser("go").is_some());
+        assert!(registry.get_parser("c").is_some());
     }
 
     #[test]
@@ -178,6 +188,7 @@ mod tests {
         assert!(registry.get_parser("RUST").is_some());
         assert!(registry.get_parser("TypeScript").is_some());
         assert!(registry.get_parser("Go").is_some());
+        assert!(registry.get_parser("C").is_some());
     }
 
     #[test]
@@ -217,6 +228,12 @@ mod tests {
             .is_some());
         assert!(registry
             .parser_for_path(&PathBuf::from("test.go"))
+            .is_some());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("test.c"))
+            .is_some());
+        assert!(registry
+            .parser_for_path(&PathBuf::from("test.h"))
             .is_some());
         assert!(registry
             .parser_for_path(&PathBuf::from("test.txt"))
@@ -259,6 +276,14 @@ mod tests {
             registry.language_for_path(&PathBuf::from("test.go")),
             Some("go")
         );
+        assert_eq!(
+            registry.language_for_path(&PathBuf::from("test.c")),
+            Some("c")
+        );
+        assert_eq!(
+            registry.language_for_path(&PathBuf::from("test.h")),
+            Some("c")
+        );
     }
 
     #[test]
@@ -288,10 +313,10 @@ mod tests {
         let registry = ParserRegistry::new();
         let extensions = registry.supported_extensions();
 
-        // Check that we have extensions for all 4 languages
+        // Check that we have extensions for all 5 languages
         // (exact extension names may vary by parser implementation)
         assert!(!extensions.is_empty());
-        assert!(extensions.len() >= 4); // At least one extension per language
+        assert!(extensions.len() >= 5); // At least one extension per language
     }
 
     #[test]
@@ -303,6 +328,8 @@ mod tests {
         assert!(registry.can_parse(Path::new("test.ts")));
         assert!(registry.can_parse(Path::new("test.js")));
         assert!(registry.can_parse(Path::new("test.go")));
+        assert!(registry.can_parse(Path::new("test.c")));
+        assert!(registry.can_parse(Path::new("test.h")));
         assert!(!registry.can_parse(Path::new("test.txt")));
         assert!(!registry.can_parse(Path::new("test.md")));
     }
@@ -312,11 +339,12 @@ mod tests {
         let registry = ParserRegistry::new();
         let metrics = registry.all_metrics();
 
-        assert_eq!(metrics.len(), 4);
+        assert_eq!(metrics.len(), 5);
         assert_eq!(metrics[0].0, "python");
         assert_eq!(metrics[1].0, "rust");
         assert_eq!(metrics[2].0, "typescript");
         assert_eq!(metrics[3].0, "go");
+        assert_eq!(metrics[4].0, "c");
     }
 
     #[test]
@@ -358,6 +386,17 @@ mod tests {
         let mut graph = CodeGraph::in_memory().unwrap();
         let source = "package main\n\nfunc hello() { fmt.Println(\"hello\") }";
         let path = Path::new("test.go");
+
+        let result = registry.parse_source(source, path, &mut graph);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_source_c() {
+        let registry = ParserRegistry::new();
+        let mut graph = CodeGraph::in_memory().unwrap();
+        let source = "#include <stdio.h>\n\nvoid hello() { printf(\"hello\\n\"); }";
+        let path = Path::new("test.c");
 
         let result = registry.parse_source(source, path, &mut graph);
         assert!(result.is_ok());

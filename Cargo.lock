@@ -209,6 +209,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "codegraph-c"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2256d1db022315f19b61a18f169dcd78686216033b8d27b0c5773fc893f67b5"
+dependencies = [
+ "codegraph",
+ "codegraph-parser-api",
+ "rayon",
+ "regex",
+ "serde",
+ "thiserror",
+ "tree-sitter",
+ "tree-sitter-c",
+]
+
+[[package]]
 name = "codegraph-go"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -228,6 +244,7 @@ name = "codegraph-lsp"
 version = "0.1.0"
 dependencies = [
  "codegraph",
+ "codegraph-c",
  "codegraph-go",
  "codegraph-parser-api",
  "codegraph-python",
@@ -1866,6 +1883,16 @@ checksum = "e747b1f9b7b931ed39a548c1fae149101497de3c1fc8d9e18c62c1a66c683d3d"
 dependencies = [
  "cc",
  "regex",
+]
+
+[[package]]
+name = "tree-sitter-c"
+version = "0.20.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bbd5f3d8658c08581f8f2adac6c391c2e9fa00fe9246bf6c5f52213b9cc6b72"
+dependencies = [
+ "cc",
+ "tree-sitter",
 ]
 
 [[package]]

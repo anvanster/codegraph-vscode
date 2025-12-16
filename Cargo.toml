@@ -35,6 +35,7 @@ codegraph-python = "0.3.0"
 codegraph-rust = "0.1.1"
 codegraph-typescript = "0.3.0"
 codegraph-go = "0.1.2"
+codegraph-c = "0.1.0"
 
 [profile.release]
 opt-level = 3

@@ -38,6 +38,7 @@ codegraph-python.workspace = true
 codegraph-rust.workspace = true
 codegraph-typescript.workspace = true
 codegraph-go.workspace = true
+codegraph-c.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

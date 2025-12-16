@@ -29,7 +29,8 @@
         "onLanguage:rust",
         "onLanguage:typescript",
         "onLanguage:javascript",
-        "onLanguage:go"
+        "onLanguage:go",
+        "onLanguage:c"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -88,7 +89,8 @@
                         "rust",
                         "typescript",
                         "javascript",
-                        "go"
+                        "go",
+                        "c"
                     ],
                     "description": "Languages to index"
                 },

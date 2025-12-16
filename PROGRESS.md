@@ -2,7 +2,7 @@
 
 ## Current Status: ~90-95% Complete
 
-Last Updated: 2024-12-14
+Last Updated: 2024-12-15
 
 ---
 
@@ -49,6 +49,7 @@ Last Updated: 2024-12-14
 - [x] TypeScript parser
 - [x] JavaScript parser
 - [x] Go parser
+- [x] C parser
 
 ### Supporting Modules
 - [x] `parser_registry.rs` - Language parser management
@@ -110,6 +111,8 @@ Last Updated: 2024-12-14
 - [ ] Additional language support (Java, C++, C#)
 - [ ] Custom theme support for graphs
 - [ ] Keyboard navigation in graph view
+
+> **Note**: C language support was added in v0.2.0
 
 ---
 
