@@ -94,7 +94,7 @@ dependencies = [
  "bitflags 2.10.0",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools",
  "lazy_static",
  "lazycell",
  "proc-macro2",
@@ -114,7 +114,7 @@ dependencies = [
  "bitflags 2.10.0",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools",
  "proc-macro2",
  "quote",
  "regex",
@@ -197,6 +197,8 @@ dependencies = [
 [[package]]
 name = "codegraph"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1cd36812bf0203056260be348dcb39c154d56dbd6c2ebda061c8369f974c2c3"
 dependencies = [
  "log",
  "rocksdb",
@@ -208,7 +210,9 @@ dependencies = [
 
 [[package]]
 name = "codegraph-c"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e075c0842d4c40d87a1d0a28be2e1ec956853099e2e378dae8654b8e90f1138f"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -223,6 +227,8 @@ dependencies = [
 [[package]]
 name = "codegraph-go"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ede9cf9c9209aca041711d348bf820c464ea6a4334480c4574a9bda9668a9c4"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -261,6 +267,8 @@ dependencies = [
 [[package]]
 name = "codegraph-parser-api"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7450e8b9a1c7edf37827a929c321ddc6d05effd8380f878250e3139bd6842ed1"
 dependencies = [
  "codegraph",
  "serde",
@@ -270,6 +278,8 @@ dependencies = [
 [[package]]
 name = "codegraph-python"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2c33071b731746fbf85728d35eacea0bf137952c5b76dae9fac7e5ca54474bc"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -286,6 +296,8 @@ dependencies = [
 [[package]]
 name = "codegraph-rust"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e16be51a0b98a3b1c3ced80de0b45f63ecdfaa4c49cb115bdde887125ec95993"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -300,6 +312,8 @@ dependencies = [
 [[package]]
 name = "codegraph-typescript"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a7dc881d2f930dd2a52b44c1d6920d6820dabe12a4cc3a8dd4d1038a4d98c86"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -750,24 +764,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -968,7 +964,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ea0ed76adf7defc1a92240b5c36d5368cfe9251640dcce5bd2d0b7c1fd87aeb"
 dependencies = [
  "hashbrown 0.14.5",
- "itertools 0.11.0",
+ "itertools",
  "libm",
  "ryu",
 ]
@@ -992,7 +988,7 @@ version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34a79feebb2bc9aa7762047c8e5495269a367da6b5a90a99882a0aeeac1841f7"
 dependencies = [
- "itertools 0.11.0",
+ "itertools",
  "libm",
  "malachite-base",
 ]
@@ -1003,7 +999,7 @@ version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50f235d5747b1256b47620f5640c2a17a88c7569eebdf27cd9cb130e1a619191"
 dependencies = [
- "itertools 0.11.0",
+ "itertools",
  "malachite-base",
  "malachite-nz",
 ]
@@ -1410,7 +1406,7 @@ checksum = "868f724daac0caf9bd36d38caf45819905193a901e8f1c983345a68e18fb2abb"
 dependencies = [
  "anyhow",
  "is-macro",
- "itertools 0.11.0",
+ "itertools",
  "lalrpop-util",
  "log",
  "malachite-bigint",
