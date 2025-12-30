@@ -177,7 +177,7 @@ impl CodeGraphBackend {
                     .get_string("language")
                     .unwrap_or("unknown")
                     .to_string();
-                
+
                 // Try to get path from node properties first, then fall back to symbol index
                 let node_path = node
                     .properties
@@ -284,7 +284,7 @@ impl CodeGraphBackend {
                                 .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
                         })
                         .unwrap_or_default();
-                    
+
                     tests.push(RelatedTest {
                         uri: node_path,
                         test_name: node.properties.get_string("name").unwrap_or("").to_string(),
@@ -327,7 +327,7 @@ impl CodeGraphBackend {
                                         .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
                                 })
                                 .unwrap_or_default();
-                            
+
                             tests.push(RelatedTest {
                                 uri: node_path,
                                 test_name: node
@@ -547,14 +547,13 @@ impl CodeGraphBackend {
                     .get_string("language")
                     .unwrap_or("unknown")
                     .to_string();
-                
+
                 // For the root node, use the original URI from params
                 // For other nodes, try to get path from properties or symbol index
                 let node_path = if current_id == node_id {
                     params.uri.clone()
                 } else {
-                    node
-                        .properties
+                    node.properties
                         .get_string("path")
                         .map(|s| s.to_string())
                         .or_else(|| {

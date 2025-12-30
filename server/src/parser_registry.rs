@@ -229,12 +229,8 @@ mod tests {
         assert!(registry
             .parser_for_path(&PathBuf::from("test.go"))
             .is_some());
-        assert!(registry
-            .parser_for_path(&PathBuf::from("test.c"))
-            .is_some());
-        assert!(registry
-            .parser_for_path(&PathBuf::from("test.h"))
-            .is_some());
+        assert!(registry.parser_for_path(&PathBuf::from("test.c")).is_some());
+        assert!(registry.parser_for_path(&PathBuf::from("test.h")).is_some());
         assert!(registry
             .parser_for_path(&PathBuf::from("test.txt"))
             .is_none());

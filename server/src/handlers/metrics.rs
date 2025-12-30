@@ -215,9 +215,7 @@ impl CodeGraphBackend {
     /// Get complexity details from a function node
     /// Primary: Uses AST-based complexity from upstream codegraph parsers (v0.3.0+)
     /// Fallback: Returns base complexity of 1 if no upstream data available
-    fn get_complexity_from_node(
-        node: &codegraph::Node,
-    ) -> (u32, ComplexityDetails, char) {
+    fn get_complexity_from_node(node: &codegraph::Node) -> (u32, ComplexityDetails, char) {
         let start = node.properties.get_int("line_start").unwrap_or(0) as u32;
         let end = node.properties.get_int("line_end").unwrap_or(0) as u32;
         let lines_of_code = end.saturating_sub(start) + 1;
@@ -233,7 +231,10 @@ impl CodeGraphBackend {
             let details = ComplexityDetails {
                 branches: node.properties.get_int("complexity_branches").unwrap_or(0) as u32,
                 loops: node.properties.get_int("complexity_loops").unwrap_or(0) as u32,
-                conditions: node.properties.get_int("complexity_logical_ops").unwrap_or(0) as u32,
+                conditions: node
+                    .properties
+                    .get_int("complexity_logical_ops")
+                    .unwrap_or(0) as u32,
                 nesting_depth: node.properties.get_int("complexity_nesting").unwrap_or(0) as u32,
                 lines_of_code,
             };
@@ -296,9 +297,9 @@ impl CodeGraphBackend {
                 // Get complexity from upstream codegraph parsers (AST-based)
                 let (complexity, details, grade) = Self::get_complexity_from_node(&node);
 
-                let location = self.node_to_location(&graph, node_id).map_err(|_| {
-                    tower_lsp::jsonrpc::Error::internal_error()
-                })?;
+                let location = self
+                    .node_to_location(&graph, node_id)
+                    .map_err(|_| tower_lsp::jsonrpc::Error::internal_error())?;
 
                 functions.push(FunctionComplexity {
                     name,
@@ -325,7 +326,10 @@ impl CodeGraphBackend {
             0.0
         };
         let max_complexity = functions.iter().map(|f| f.complexity).max().unwrap_or(0);
-        let functions_above_threshold = functions.iter().filter(|f| f.complexity > threshold).count() as u32;
+        let functions_above_threshold = functions
+            .iter()
+            .filter(|f| f.complexity > threshold)
+            .count() as u32;
 
         // Generate recommendations
         let mut recommendations = Vec::new();
@@ -339,11 +343,15 @@ impl CodeGraphBackend {
 
         if average_complexity > 15.0 {
             recommendations.push(
-                "File has high average complexity. Consider splitting into multiple modules.".to_string()
+                "File has high average complexity. Consider splitting into multiple modules."
+                    .to_string(),
             );
         }
 
-        let high_nesting: Vec<_> = functions.iter().filter(|f| f.details.nesting_depth > 4).collect();
+        let high_nesting: Vec<_> = functions
+            .iter()
+            .filter(|f| f.details.nesting_depth > 4)
+            .collect();
         if !high_nesting.is_empty() {
             recommendations.push(format!(
                 "{} function(s) have deep nesting (>4 levels). Use early returns or extract methods.",
@@ -407,21 +415,33 @@ impl CodeGraphBackend {
                 let name = node.properties.get_string("name").unwrap_or("").to_string();
 
                 // Skip test functions unless requested
-                if !include_tests && (name.starts_with("test_") || name.ends_with("_test") || name.contains("Test")) {
+                if !include_tests
+                    && (name.starts_with("test_")
+                        || name.ends_with("_test")
+                        || name.contains("Test"))
+                {
                     continue;
                 }
 
                 // Check if node has any incoming calls
                 let incoming = self.get_connected_edges(&graph, node_id, Direction::Incoming);
-                let has_callers = incoming.iter().any(|(_, _, edge_type)| *edge_type == EdgeType::Calls);
+                let has_callers = incoming
+                    .iter()
+                    .any(|(_, _, edge_type)| *edge_type == EdgeType::Calls);
 
                 if !has_callers {
                     // Determine if this might be exported or an entry point
                     let is_exported = node.properties.get_bool("exported").unwrap_or(false)
-                        || node.properties.get_string("visibility").map(|v| v == "public").unwrap_or(false);
+                        || node
+                            .properties
+                            .get_string("visibility")
+                            .map(|v| v == "public")
+                            .unwrap_or(false);
 
                     let is_entry = Self::is_entry_point(&name);
-                    let is_handler = name.contains("handle") || name.contains("Handler") || name.starts_with("on");
+                    let is_handler = name.contains("handle")
+                        || name.contains("Handler")
+                        || name.starts_with("on");
                     let is_lifecycle = ["init", "setup", "teardown", "cleanup", "main", "run"]
                         .iter()
                         .any(|k| name.to_lowercase().contains(k));
@@ -483,7 +503,11 @@ impl CodeGraphBackend {
         }
 
         // Sort by confidence descending
-        unused_items.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+        unused_items.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let safe_deletions = unused_items.iter().filter(|i| i.safe_to_remove).count() as u32;
 
@@ -533,7 +557,11 @@ impl CodeGraphBackend {
         let _include_external = params.include_external.unwrap_or(false);
 
         // Get all symbols in this file
-        let file_symbols: HashSet<NodeId> = self.symbol_index.get_file_symbols(&path).into_iter().collect();
+        let file_symbols: HashSet<NodeId> = self
+            .symbol_index
+            .get_file_symbols(&path)
+            .into_iter()
+            .collect();
 
         let mut dependents: Vec<String> = Vec::new();
         let mut dependencies: Vec<String> = Vec::new();
@@ -629,7 +657,8 @@ impl CodeGraphBackend {
                 violation_type: "stable_dependency".to_string(),
                 severity: "warning".to_string(),
                 description: "Stable module has many outgoing dependencies".to_string(),
-                suggestion: "Consider extracting dependencies to make module more focused".to_string(),
+                suggestion: "Consider extracting dependencies to make module more focused"
+                    .to_string(),
             });
         }
 

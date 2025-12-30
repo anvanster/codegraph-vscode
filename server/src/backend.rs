@@ -1239,8 +1239,8 @@ impl LanguageServer for CodeGraphBackend {
                 let args = params.arguments.first().ok_or_else(|| {
                     tower_lsp::jsonrpc::Error::invalid_params("Missing arguments")
                 })?;
-                let params: crate::handlers::CouplingParams =
-                    serde_json::from_value(args.clone()).map_err(|e| {
+                let params: crate::handlers::CouplingParams = serde_json::from_value(args.clone())
+                    .map_err(|e| {
                         tower_lsp::jsonrpc::Error::invalid_params(format!("Invalid params: {e}"))
                     })?;
                 let response = self.handle_analyze_coupling(params).await?;
