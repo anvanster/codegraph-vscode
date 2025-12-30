@@ -731,8 +731,16 @@ mod tests {
         let path1 = PathBuf::from("/src/main.rs");
         let path2 = PathBuf::from("/src/lib.rs");
 
+        // Insert into both by_file and node_to_file maps
         index.by_file.insert(path1.clone(), vec![1, 2, 3]);
         index.by_file.insert(path2.clone(), vec![4, 5]);
+
+        // Also populate the reverse index (node_to_file)
+        index.node_to_file.insert(1, path1.clone());
+        index.node_to_file.insert(2, path1.clone());
+        index.node_to_file.insert(3, path1.clone());
+        index.node_to_file.insert(4, path2.clone());
+        index.node_to_file.insert(5, path2.clone());
 
         // Find node in first file
         assert_eq!(index.find_file_for_node(1), Some(path1.clone()));

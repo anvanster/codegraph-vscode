@@ -295,7 +295,7 @@ impl CodeGraphBackend {
                     .to_string();
 
                 // Get complexity from upstream codegraph parsers (AST-based)
-                let (complexity, details, grade) = Self::get_complexity_from_node(&node);
+                let (complexity, details, grade) = Self::get_complexity_from_node(node);
 
                 let location = self
                     .node_to_location(&graph, node_id)
@@ -598,18 +598,18 @@ impl CodeGraphBackend {
             // Incoming edges (who depends on us)
             let incoming = self.get_connected_edges(&graph, *node_id, Direction::Incoming);
             for (source, _, edge_type) in incoming {
-                if edge_type == EdgeType::Imports || edge_type == EdgeType::Calls {
-                    if !file_symbols.contains(&source) {
-                        if let Ok(source_node) = graph.get_node(source) {
-                            if let Some(src_path) = source_node.properties.get_string("path") {
-                                let src_name = std::path::Path::new(src_path)
-                                    .file_stem()
-                                    .and_then(|s| s.to_str())
-                                    .unwrap_or("unknown")
-                                    .to_string();
-                                if !dependents.contains(&src_name) {
-                                    dependents.push(src_name);
-                                }
+                if (edge_type == EdgeType::Imports || edge_type == EdgeType::Calls)
+                    && !file_symbols.contains(&source)
+                {
+                    if let Ok(source_node) = graph.get_node(source) {
+                        if let Some(src_path) = source_node.properties.get_string("path") {
+                            let src_name = std::path::Path::new(src_path)
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("unknown")
+                                .to_string();
+                            if !dependents.contains(&src_name) {
+                                dependents.push(src_name);
                             }
                         }
                     }
@@ -671,8 +671,7 @@ impl CodeGraphBackend {
 
         if afferent > 10 {
             recommendations.push(format!(
-                "Many modules ({}) depend on this one. Changes here have wide impact.",
-                afferent
+                "Many modules ({afferent}) depend on this one. Changes here have wide impact."
             ));
         }
 
@@ -726,7 +725,9 @@ mod tests {
         assert!(CodeGraphBackend::is_entry_point("main"));
         assert!(CodeGraphBackend::is_entry_point("Main"));
         assert!(CodeGraphBackend::is_entry_point("clickHandler"));
-        assert!(CodeGraphBackend::is_entry_point("onSubmit"));
+        assert!(CodeGraphBackend::is_entry_point("submitHandler"));
+        assert!(CodeGraphBackend::is_entry_point("eventListener"));
+        assert!(CodeGraphBackend::is_entry_point("onClickCallback"));
         assert!(!CodeGraphBackend::is_entry_point("calculateSum"));
         assert!(!CodeGraphBackend::is_entry_point("processData"));
     }

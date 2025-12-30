@@ -186,7 +186,7 @@ impl CodeGraphBackend {
                     .or_else(|| {
                         self.symbol_index
                             .find_file_for_node(node_id)
-                            .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                            .and_then(|p| p.to_str().map(|s| format!("file://{s}")))
                     })
                     .unwrap_or_default();
 
@@ -281,7 +281,7 @@ impl CodeGraphBackend {
                         .or_else(|| {
                             self.symbol_index
                                 .find_file_for_node(source_id)
-                                .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                                .and_then(|p| p.to_str().map(|s| format!("file://{s}")))
                         })
                         .unwrap_or_default();
 
@@ -324,7 +324,7 @@ impl CodeGraphBackend {
                                 .or_else(|| {
                                     self.symbol_index
                                         .find_file_for_node(sibling_id)
-                                        .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                                        .and_then(|p| p.to_str().map(|s| format!("file://{s}")))
                                 })
                                 .unwrap_or_default();
 
@@ -559,7 +559,7 @@ impl CodeGraphBackend {
                         .or_else(|| {
                             self.symbol_index
                                 .find_file_for_node(current_id)
-                                .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                                .and_then(|p| p.to_str().map(|s| format!("file://{s}")))
                         })
                         .unwrap_or_default()
                 };
@@ -733,7 +733,7 @@ impl CodeGraphBackend {
                     .or_else(|| {
                         self.symbol_index
                             .find_file_for_node(source_id)
-                            .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                            .and_then(|p| p.to_str().map(|s| format!("file://{s}")))
                     })
                     .unwrap_or_default();
                 let ref_name = ref_node
@@ -826,7 +826,7 @@ impl CodeGraphBackend {
                             .or_else(|| {
                                 self.symbol_index
                                     .find_file_for_node(source_id)
-                                    .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                                    .and_then(|p| p.to_str().map(|s| format!("file://{s}")))
                             })
                             .unwrap_or_default();
 
