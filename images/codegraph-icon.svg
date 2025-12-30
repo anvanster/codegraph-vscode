@@ -1,0 +1,43 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <radialGradient id="pulse1">
+            <stop offset="0%" stop-color="#00B4D8" stop-opacity="0.8"/>
+            <stop offset="100%" stop-color="#00B4D8" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="pulse2">
+            <stop offset="0%" stop-color="#48CAE4" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#48CAE4" stop-opacity="0"/>
+        </radialGradient>
+    </defs>
+    
+    <!-- Background circle -->
+    <circle cx="100" cy="100" r="95" fill="#0a1929" stroke="none"/>
+    
+    <!-- Pulse rings (radiating energy) -->
+    <circle cx="100" cy="100" r="70" fill="url(#pulse1)"/>
+    <circle cx="100" cy="100" r="50" fill="url(#pulse2)"/>
+    
+    <!-- Outer ring with gaps -->
+    <circle cx="100" cy="100" r="80" fill="none" stroke="#00B4D8" stroke-width="10" 
+            stroke-dasharray="40,20" stroke-linecap="round"/>
+    
+    <!-- Central cluster -->
+    <circle cx="100" cy="100" r="15" fill="#0077B6"/>
+    <circle cx="100" cy="100" r="15" fill="#00B4D8" opacity="0.3"/>
+    
+    <!-- Node constellation (6 nodes around center) -->
+    <circle cx="85" cy="70" r="9" fill="#00B4D8"/>
+    <circle cx="115" cy="70" r="9" fill="#48CAE4"/>
+    <circle cx="130" cy="100" r="9" fill="#90E0EF"/>
+    <circle cx="115" cy="130" r="9" fill="#ADE8F4"/>
+    <circle cx="85" cy="130" r="9" fill="#90E0EF"/>
+    <circle cx="70" cy="100" r="9" fill="#48CAE4"/>
+    
+    <!-- Connecting lines from center to nodes -->
+    <line x1="100" y1="100" x2="85" y2="70" stroke="#00B4D8" stroke-width="2.5"/>
+    <line x1="100" y1="100" x2="115" y2="70" stroke="#48CAE4" stroke-width="2.5"/>
+    <line x1="100" y1="100" x2="130" y2="100" stroke="#90E0EF" stroke-width="2.5"/>
+    <line x1="100" y1="100" x2="115" y2="130" stroke="#ADE8F4" stroke-width="2.5"/>
+    <line x1="100" y1="100" x2="85" y2="130" stroke="#90E0EF" stroke-width="2.5"/>
+    <line x1="100" y1="100" x2="70" y2="100" stroke="#48CAE4" stroke-width="2.5"/>
+</svg>

@@ -44,6 +44,8 @@ CodeGraph provides tools for AI assistants (GitHub Copilot, Claude, etc.) to und
 ### 🌐 Multi-Language Support
 Works with **TypeScript**, **JavaScript**, **Python**, **Rust**, **Go**, and **C** in the same project.
 
+> **C/Kernel Code**: The C parser includes tolerant mode for parsing Linux kernel drivers and system code without requiring `compile_commands.json`. For full semantic analysis (call graphs, cross-file references), generate a compilation database using `bear -- make` or the kernel build system.
+
 ---
 
 ## Quick Start
@@ -103,7 +105,7 @@ See [AI_TOOL_EXAMPLES.md](docs/AI_TOOL_EXAMPLES.md) for detailed usage examples 
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `codegraph.enabled` | Enable/disable the extension | `true` |
-| `codegraph.languages` | Languages to index | `["python", "rust", "typescript", "javascript", "go"]` |
+| `codegraph.languages` | Languages to index | `["python", "rust", "typescript", "javascript", "go", "c"]` |
 | `codegraph.indexOnStartup` | Index workspace on startup | `true` |
 | `codegraph.maxFileSizeKB` | Maximum file size to index (KB) | `1024` |
 | `codegraph.excludePatterns` | Glob patterns to exclude | `["**/node_modules/**", "**/target/**", ...]` |
@@ -140,6 +142,7 @@ A high-performance LSP server built with [tower-lsp](https://github.com/ebkalder
 | `codegraph-python` | Python parser (rustpython-parser) |
 | `codegraph-rust` | Rust parser (syn + tree-sitter) |
 | `codegraph-go` | Go parser (tree-sitter) |
+| `codegraph-c` | C parser (tree-sitter) with kernel code support |
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -155,9 +158,9 @@ A high-performance LSP server built with [tower-lsp](https://github.com/ebkalder
 │                  Rust LSP Server (tower-lsp)                 │
 ├─────────────────────────────────────────────────────────────┤
 │                     Parser Registry                          │
-│  ┌────────────┐ ┌────────┐ ┌──────┐ ┌────┐                  │
-│  │ TypeScript │ │ Python │ │ Rust │ │ Go │                  │
-│  └────────────┘ └────────┘ └──────┘ └────┘                  │
+│  ┌────────────┐ ┌────────┐ ┌──────┐ ┌────┐ ┌───┐            │
+│  │ TypeScript │ │ Python │ │ Rust │ │ Go │ │ C │            │
+│  └────────────┘ └────────┘ └──────┘ └────┘ └───┘            │
 ├─────────────────────────────────────────────────────────────┤
 │  CodeGraph Core: Semantic Graph │ Query Engine │ Caching    │
 └─────────────────────────────────┴─────────────┴─────────────┘
