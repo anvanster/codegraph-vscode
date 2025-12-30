@@ -197,8 +197,6 @@ dependencies = [
 [[package]]
 name = "codegraph"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1cd36812bf0203056260be348dcb39c154d56dbd6c2ebda061c8369f974c2c3"
 dependencies = [
  "log",
  "rocksdb",
@@ -211,8 +209,6 @@ dependencies = [
 [[package]]
 name = "codegraph-c"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2256d1db022315f19b61a18f169dcd78686216033b8d27b0c5773fc893f67b5"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -227,8 +223,6 @@ dependencies = [
 [[package]]
 name = "codegraph-go"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ede9cf9c9209aca041711d348bf820c464ea6a4334480c4574a9bda9668a9c4"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -267,8 +261,6 @@ dependencies = [
 [[package]]
 name = "codegraph-parser-api"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7450e8b9a1c7edf37827a929c321ddc6d05effd8380f878250e3139bd6842ed1"
 dependencies = [
  "codegraph",
  "serde",
@@ -278,8 +270,6 @@ dependencies = [
 [[package]]
 name = "codegraph-python"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2c33071b731746fbf85728d35eacea0bf137952c5b76dae9fac7e5ca54474bc"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -296,8 +286,6 @@ dependencies = [
 [[package]]
 name = "codegraph-rust"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e16be51a0b98a3b1c3ced80de0b45f63ecdfaa4c49cb115bdde887125ec95993"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",
@@ -312,8 +300,6 @@ dependencies = [
 [[package]]
 name = "codegraph-typescript"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a7dc881d2f930dd2a52b44c1d6920d6820dabe12a4cc3a8dd4d1038a4d98c86"
 dependencies = [
  "codegraph",
  "codegraph-parser-api",

@@ -177,7 +177,18 @@ impl CodeGraphBackend {
                     .get_string("language")
                     .unwrap_or("unknown")
                     .to_string();
-                let node_path = node.properties.get_string("path").unwrap_or("").to_string();
+                
+                // Try to get path from node properties first, then fall back to symbol index
+                let node_path = node
+                    .properties
+                    .get_string("path")
+                    .map(|s| s.to_string())
+                    .or_else(|| {
+                        self.symbol_index
+                            .find_file_for_node(node_id)
+                            .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                    })
+                    .unwrap_or_default();
 
                 nodes.push(DependencyNode {
                     id: node_id.to_string(),
@@ -263,8 +274,19 @@ impl CodeGraphBackend {
                 }
 
                 if let Some(range) = Self::node_to_range(node) {
+                    let node_path = node
+                        .properties
+                        .get_string("path")
+                        .map(|s| s.to_string())
+                        .or_else(|| {
+                            self.symbol_index
+                                .find_file_for_node(source_id)
+                                .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                        })
+                        .unwrap_or_default();
+                    
                     tests.push(RelatedTest {
-                        uri: node.properties.get_string("path").unwrap_or("").to_string(),
+                        uri: node_path,
                         test_name: node.properties.get_string("name").unwrap_or("").to_string(),
                         relationship: match edge_type {
                             EdgeType::Calls => "calls_target".to_string(),
@@ -295,8 +317,19 @@ impl CodeGraphBackend {
                         }
 
                         if let Some(range) = Self::node_to_range(node) {
+                            let node_path = node
+                                .properties
+                                .get_string("path")
+                                .map(|s| s.to_string())
+                                .or_else(|| {
+                                    self.symbol_index
+                                        .find_file_for_node(sibling_id)
+                                        .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                                })
+                                .unwrap_or_default();
+                            
                             tests.push(RelatedTest {
-                                uri: node.properties.get_string("path").unwrap_or("").to_string(),
+                                uri: node_path,
                                 test_name: node
                                     .properties
                                     .get_string("name")
@@ -514,7 +547,23 @@ impl CodeGraphBackend {
                     .get_string("language")
                     .unwrap_or("unknown")
                     .to_string();
-                let node_path = node.properties.get_string("path").unwrap_or("").to_string();
+                
+                // For the root node, use the original URI from params
+                // For other nodes, try to get path from properties or symbol index
+                let node_path = if current_id == node_id {
+                    params.uri.clone()
+                } else {
+                    node
+                        .properties
+                        .get_string("path")
+                        .map(|s| s.to_string())
+                        .or_else(|| {
+                            self.symbol_index
+                                .find_file_for_node(current_id)
+                                .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                        })
+                        .unwrap_or_default()
+                };
 
                 let start_line = get_line_start(node).saturating_sub(1);
                 let start_col = get_col_start(node);
@@ -681,8 +730,13 @@ impl CodeGraphBackend {
                 let ref_path = ref_node
                     .properties
                     .get_string("path")
-                    .unwrap_or("")
-                    .to_string();
+                    .map(|s| s.to_string())
+                    .or_else(|| {
+                        self.symbol_index
+                            .find_file_for_node(source_id)
+                            .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                    })
+                    .unwrap_or_default();
                 let ref_name = ref_node
                     .properties
                     .get_string("name")
@@ -769,8 +823,13 @@ impl CodeGraphBackend {
                         let ref_path = ref_node
                             .properties
                             .get_string("path")
-                            .unwrap_or("")
-                            .to_string();
+                            .map(|s| s.to_string())
+                            .or_else(|| {
+                                self.symbol_index
+                                    .find_file_for_node(source_id)
+                                    .and_then(|p| p.to_str().map(|s| format!("file://{}", s)))
+                            })
+                            .unwrap_or_default();
 
                         if !affected_files.contains(&ref_path) {
                             let mut new_path = path_chain.clone();

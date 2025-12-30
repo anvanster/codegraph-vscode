@@ -20,6 +20,9 @@ pub struct SymbolIndex {
     /// Position index for fast position lookups.
     /// Maps file path to sorted list of (range, node_id).
     by_position: DashMap<PathBuf, Vec<(IndexRange, NodeId)>>,
+
+    /// Reverse index: NodeId -> File path (for getting the file path of a node).
+    node_to_file: DashMap<NodeId, PathBuf>,
 }
 
 /// Internal range representation for indexing.
@@ -69,6 +72,7 @@ impl SymbolIndex {
             by_file: DashMap::new(),
             by_type: DashMap::new(),
             by_position: DashMap::new(),
+            node_to_file: DashMap::new(),
         }
     }
 
@@ -106,6 +110,9 @@ impl SymbolIndex {
                 if let Some(range) = extract_range(&node.properties) {
                     positions.push((range, node_id));
                 }
+
+                // Add to reverse index (NodeId -> PathBuf)
+                self.node_to_file.insert(node_id, path.clone());
             }
         }
 
@@ -139,6 +146,9 @@ impl SymbolIndex {
                     v.retain(|&id| id != node_id);
                     !v.is_empty()
                 });
+
+                // Remove from reverse index
+                self.node_to_file.remove(&node_id);
             }
         }
 
@@ -221,12 +231,7 @@ impl SymbolIndex {
     /// Find the file path for a given node ID by reverse lookup.
     /// This is useful when nodes don't have a `path` property set directly.
     pub fn find_file_for_node(&self, node_id: NodeId) -> Option<PathBuf> {
-        for entry in self.by_file.iter() {
-            if entry.value().contains(&node_id) {
-                return Some(entry.key().clone());
-            }
-        }
-        None
+        self.node_to_file.get(&node_id).map(|entry| entry.clone())
     }
 
     /// Clear all indexes.
@@ -235,6 +240,7 @@ impl SymbolIndex {
         self.by_file.clear();
         self.by_type.clear();
         self.by_position.clear();
+        self.node_to_file.clear();
     }
 
     /// Get index statistics.
